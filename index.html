@@ -343,10 +343,10 @@
                         <div className="w-1/2 h-full overflow-hidden relative">{!hideAmbilight && spread.right && <ReaderImage file={spread.right} isBackground={true} />}</div>
                     </div>
                     <div className={`page-wrapper-left gpu-accelerated ${animLeftClass}`} style={physicalStyles?.left || {}}>
-                        {spread.left ? <ReaderImage file={spread.left} className="img-left" /> : <div className="w-full h-full bg-transparent"></div>}
+                        {spread.left ? <ReaderImage file={spread.left} className="img-left" /> : <div className="w-full h-full bg-black"></div>}
                     </div>
                     <div className={`page-wrapper-right gpu-accelerated ${animRightClass}`} style={physicalStyles?.right || {}}>
-                        {spread.right ? <ReaderImage file={spread.right} className="img-right" /> : <div className="w-full h-full bg-transparent"></div>}
+                        {spread.right ? <ReaderImage file={spread.right} className="img-right" /> : <div className="w-full h-full bg-black"></div>}
                     </div>
                 </div>
             );
@@ -535,7 +535,7 @@
         });
 
         // --- COMPOSANT INSPECTION 3D (TOMB RAIDER STYLE) ---
-        const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMenu, onPrev, onNext, hasPrev, hasNext }) => {
+        const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMenu, onPrev, onNext, hasPrev, hasNext, effectiveLandscape }) => {
             if (!manga) return null;
 
             const [scale, setScale] = useState(1);
@@ -583,13 +583,14 @@
             const [rotX, setRotX] = useState(0);
             const [isDragging, setIsDragging] = useState(false);
             const [autoSpin, setAutoSpin] = useState(true);
+            const [isOpening, setIsOpening] = useState(false);
             const dragInfo = useRef({ startX: 0, startY: 0, initRotY: 0, initRotX: 0, hasDragged: false });
 
             useEffect(() => {
                 if (!autoSpin) return;
                 let animationFrameId;
                 let lastTime = performance.now();
-                // Tourne de 360° en 16 secondes (comme l'ancienne animation CSS)
+                // Tourne de 360° en 16 secondes
                 const speedPerMs = (360 / 16000) * (isRTL ? -1 : 1); 
                 
                 const animate = (time) => {
@@ -603,7 +604,7 @@
             }, [autoSpin, isRTL]);
 
             const onPointerDown = (e) => {
-                setAutoSpin(false); // Stoppe l'animation automatique définitivement
+                setAutoSpin(false); 
                 setIsDragging(true);
                 dragInfo.current = { startX: e.clientX, startY: e.clientY, initRotY: rotY, initRotX: rotX, hasDragged: false };
                 e.currentTarget.setPointerCapture(e.pointerId);
@@ -614,11 +615,10 @@
                 const deltaX = e.clientX - dragInfo.current.startX;
                 const deltaY = e.clientY - dragInfo.current.startY;
                 
-                // Différencier un simple clic d'un vrai glissement (pour la lecture)
                 if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) dragInfo.current.hasDragged = true;
                 
                 setRotY(dragInfo.current.initRotY + deltaX * 0.6);
-                setRotX(Math.max(-60, Math.min(60, dragInfo.current.initRotX - deltaY * 0.6))); // Limite la rotation haut/bas
+                setRotX(Math.max(-60, Math.min(60, dragInfo.current.initRotX - deltaY * 0.6))); 
             };
 
             const onPointerUp = (e) => {
@@ -628,13 +628,15 @@
 
             const handleReadClick = (e) => {
                 e.stopPropagation();
-                // Si l'utilisateur a fait glisser le livre, on n'ouvre pas le manga
                 if (dragInfo.current.hasDragged) {
                     dragInfo.current.hasDragged = false;
                     return;
                 }
-                const fakeEvent = { currentTarget: document.getElementById('inspect-book-container') };
-                onRead(manga, fakeEvent);
+                setIsOpening(true);
+                setTimeout(() => {
+                    const fakeEvent = { currentTarget: document.getElementById('inspect-book-container') };
+                    onRead(manga, fakeEvent, true);
+                }, 700);
             };
 
             // --- ANIMATION STYLE TOMB RAIDER (SLIDE 3D) ---
@@ -658,7 +660,7 @@
                 e.stopPropagation();
                 if (!hasPrev || trState !== 'idle') return;
                 setTrState('leaving-prev');
-                setTimeout(() => onPrev(), 300); // Laisse le temps à l'animation de sortie de se terminer
+                setTimeout(() => onPrev(), 300);
             }, [hasPrev, onPrev, trState]);
 
             const handleNext = useCallback((e) => {
@@ -679,17 +681,53 @@
                 trStyle = { transition: 'none', transform: 'translateX(-40vw) translateZ(-600px) scale(0.6) rotateY(60deg)', opacity: 0 };
             }
 
+            // --- CALCULS DE TRANSITION 3D INTELLIGENTE ---
+            let targetScaleOpening = scale;
+            if (effectiveLandscape && isDouble) {
+                targetScaleOpening = Math.min(window.innerWidth / (bw * 2 + bd), window.innerHeight / bh) * 0.98;
+            } else if (effectiveLandscape && !isDouble) {
+                targetScaleOpening = Math.min((window.innerWidth / 2) / bw, window.innerHeight / bh) * 0.98;
+            } else {
+                targetScaleOpening = Math.min(window.innerWidth / bw, window.innerHeight / bh) * 0.98;
+            }
+
+            const frontOrigin = spineIsRight ? `${bw - bd/2}px center` : `${bd/2}px center`;
+            const backOrigin = spineIsRight ? `${bd/2}px center` : `${bw - bd/2}px center`;
+
+            let frontCoverTransform = `translateZ(${bd/2}px) rotateY(0deg)`;
+            let backCoverTransform = `translateZ(${-bd/2}px) rotateY(180deg)`;
+            let bookRotateY = rotY;
+            let bookRotateX = rotX;
+            let containerTransform = `translateX(0px) scale(${scale}) translateY(0px)`;
+
+            if (isOpening) {
+                bookRotateX = 0;
+                if (effectiveLandscape && isDouble) {
+                    bookRotateY = spineIsRight ? -90 : 90;
+                    containerTransform = `translateX(0px) scale(${targetScaleOpening}) translateY(0px)`;
+                    frontCoverTransform = `translateZ(${bd/2}px) rotateY(${spineIsRight ? 90 : -90}deg)`;
+                    backCoverTransform = `translateZ(${-bd/2}px) rotateY(${spineIsRight ? 90 : 270}deg)`; 
+                } else if (effectiveLandscape && !isDouble) {
+                    bookRotateY = 0;
+                    const moveX = isRTL ? -((targetScaleOpening * bw) / 2) : ((targetScaleOpening * bw) / 2);
+                    containerTransform = `translateX(${moveX}px) scale(${targetScaleOpening}) translateY(0px)`;
+                } else {
+                    bookRotateY = 0;
+                    containerTransform = `translateX(0px) scale(${targetScaleOpening}) translateY(0px)`;
+                }
+            }
+
             return (
-                <div className={`fixed inset-0 z-[1500] flex items-center justify-center bg-black/80 backdrop-blur-xl transition-opacity duration-500 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'}`} onClick={onClose}>
+                <div className={`fixed inset-0 z-[1500] flex items-center justify-center transition-all duration-700 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'} ${isOpening ? 'bg-black backdrop-blur-none' : 'bg-black/80 backdrop-blur-xl'}`} onClick={onClose}>
                     
-                    {/* Flèches de navigation inter-pile avec les nouvelles fonctions */}
+                    {/* Flèches de navigation inter-pile */}
                     {hasPrev && (
-                        <button onClick={handlePrev} className="absolute left-4 sm:left-8 md:left-12 xl:left-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95">
+                        <button onClick={handlePrev} className={`absolute left-4 sm:left-8 md:left-12 xl:left-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95 ${isOpening ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100'}`}>
                             <IconChevronLeft width="32" height="32" />
                         </button>
                     )}
                     {hasNext && (
-                        <button onClick={handleNext} className="absolute right-4 sm:right-8 md:right-12 xl:right-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95">
+                        <button onClick={handleNext} className={`absolute right-4 sm:right-8 md:right-12 xl:right-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95 ${isOpening ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100'}`}>
                             <IconChevronRight width="32" height="32" />
                         </button>
                     )}
@@ -697,22 +735,44 @@
                     <div className="relative flex flex-col items-center gap-12 sm:gap-16 w-full max-w-2xl px-4" onClick={e => e.stopPropagation()}>
                         
                         {/* Wrapper Perspective */}
-                        <div style={{ perspective: '2000px' }} className="flex justify-center items-center mt-10">
+                        <div style={{ perspective: '2000px' }} className="flex justify-center items-center mt-10 z-[1900]">
                             
                             {/* TOMB RAIDER ANIMATION WRAPPER */}
                             <div style={{ ...trStyle, transformStyle: 'preserve-3d' }}>
                                 
-                                {/* 3D Artifact Float Wrapper - Ajout du Touch-None pour bloquer le scroll et des events Pointers */}
                                 <div id="inspect-book-container" className="relative cursor-grab active:cursor-grabbing group touch-none" 
-                                    style={{ width: `${bw}px`, height: `${bh}px`, animation: 'artifactFloat 6s ease-in-out infinite', transformStyle: 'preserve-3d', transform: `scale(${scale})` }} 
+                                    style={{ 
+                                        width: `${bw}px`, height: `${bh}px`, 
+                                        animation: isOpening ? 'none' : 'artifactFloat 6s ease-in-out infinite', 
+                                        transformStyle: 'preserve-3d', 
+                                        transform: containerTransform,
+                                        transition: isOpening ? 'transform 0.7s cubic-bezier(0.25, 1, 0.5, 1)' : 'none'
+                                    }} 
                                     onClick={handleReadClick}
                                     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
                                     
-                                    {/* 3D Spin Wrapper (L'animation CSS est remplacée par la rotation en State React) */}
-                                    <div className="w-full h-full relative" style={{ transformStyle: 'preserve-3d', transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)` }}>
+                                    {/* 3D Spin Wrapper */}
+                                    <div className="w-full h-full relative" style={{ 
+                                        transformStyle: 'preserve-3d', 
+                                        transform: `rotateX(${bookRotateX}deg) rotateY(${bookRotateY}deg)`,
+                                        transition: isOpening ? 'transform 0.7s cubic-bezier(0.25, 1, 0.5, 1)' : 'none'
+                                    }}>
                                         
+                                        {/* Intérieur du livre (Noir profond) qui s'estompe si on ouvre la jaquette complète */}
+                                        <div className="absolute inset-0 bg-black" style={{ 
+                                            transform: `translateZ(${bd/2 - 1}px)`, 
+                                            opacity: (isOpening && effectiveLandscape && isDouble) ? 0 : 1,
+                                            transition: 'opacity 0.4s ease',
+                                            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' 
+                                        }}></div>
+
                                         {/* Face Avant (Couverture Début) */}
-                                        <div className="absolute inset-0" style={{ transform: `translateZ(${bd/2}px)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+                                        <div className="absolute inset-0" style={{ 
+                                            transform: frontCoverTransform,
+                                            transformOrigin: frontOrigin,
+                                            transition: isOpening ? 'transform 0.7s cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
+                                            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' 
+                                        }}>
                                             {isDouble ? (
                                                 <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosFront }}></div>
                                             ) : (
@@ -721,7 +781,12 @@
                                         </div>
 
                                         {/* Face Arrière (Couverture Fin) */}
-                                        <div className="absolute inset-0" style={{ transform: `translateZ(${-bd/2}px) rotateY(180deg)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+                                        <div className="absolute inset-0" style={{ 
+                                            transform: backCoverTransform,
+                                            transformOrigin: backOrigin,
+                                            transition: isOpening ? 'transform 0.7s cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
+                                            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' 
+                                        }}>
                                             {isDouble ? (
                                                 <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosBack }}></div>
                                             ) : (
@@ -741,17 +806,27 @@
                                         </div>
 
                                         {/* Tranche Pages (Opposée) */}
-                                        <div className="absolute inset-y-0 bg-[#e8e4db]" style={{ width: `${bd}px`, left: spineIsRight ? 0 : 'auto', right: spineIsRight ? 'auto' : 0, transform: `translateX(${spineIsRight ? -bd/2 : bd/2}px) rotateY(${spineIsRight ? -90 : 90}deg)` }}>
+                                        <div className="absolute inset-y-0 bg-[#e8e4db]" style={{ 
+                                            width: `${bd}px`, left: spineIsRight ? 0 : 'auto', right: spineIsRight ? 'auto' : 0, 
+                                            transform: `translateX(${spineIsRight ? -bd/2 : bd/2}px) rotateY(${spineIsRight ? -90 : 90}deg)`,
+                                            opacity: (isOpening && effectiveLandscape && isDouble) ? 0 : 1, transition: 'opacity 0.4s ease'
+                                        }}>
                                             <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
                                         </div>
 
                                         {/* Tranche Haut (Pages) */}
-                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, top: 0, transform: `translateY(${-bd/2}px) rotateX(90deg)` }}>
+                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ 
+                                            height: `${bd}px`, top: 0, transform: `translateY(${-bd/2}px) rotateX(90deg)`,
+                                            opacity: (isOpening && effectiveLandscape && isDouble) ? 0 : 1, transition: 'opacity 0.4s ease'
+                                        }}>
                                             <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
                                         </div>
 
                                         {/* Tranche Bas (Pages) */}
-                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, bottom: 0, transform: `translateY(${bd/2}px) rotateX(-90deg)` }}>
+                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ 
+                                            height: `${bd}px`, bottom: 0, transform: `translateY(${bd/2}px) rotateX(-90deg)`,
+                                            opacity: (isOpening && effectiveLandscape && isDouble) ? 0 : 1, transition: 'opacity 0.4s ease'
+                                        }}>
                                             <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
                                         </div>
                                     </div>
@@ -760,8 +835,8 @@
                             </div>
                         </div>
 
-                        {/* Méta-données & Boutons d'action (avec transition fondue) */}
-                        <div className="flex flex-col items-center gap-6 animate-slide-up w-full z-30 mt-8" style={{ opacity: trState === 'idle' ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+                        {/* Méta-données & Boutons d'action */}
+                        <div className="flex flex-col items-center gap-6 animate-slide-up w-full z-30 mt-8" style={{ opacity: (trState === 'idle' && !isOpening) ? 1 : 0, pointerEvents: isOpening ? 'none' : 'auto', transition: 'all 0.3s ease' }}>
                             <div className="text-center px-4">
                                 <span className="text-theme-400 font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2 block drop-shadow-md">
                                     {manga.group || "Volume Indépendant"}
@@ -1609,17 +1684,21 @@
             const allSpreads = useMemo(() => {
                 if(!currentManga || !currentPages || currentPages.length === 0) return [];
                 let p = currentPages;
-                const startName = currentManga.coverStart?.name; const endName = currentManga.coverEnd?.name;
-                if (startName || endName) p = p.filter(page => page.name !== startName && page.name !== endName);
+                const startName = currentManga.coverStart?.name; const endName = currentManga.coverEnd?.name; const doubleName = currentManga.coverDouble?.name;
+                if (startName || endName || doubleName) p = p.filter(page => page.name !== startName && page.name !== endName && page.name !== doubleName);
 
-                const spreads = []; const isRTL = currentManga.direction === 'rtl'; const isDouble = currentManga.isDoubleCover || !!currentManga.coverDouble;
+                const spreads = []; 
+                const isRTL = currentManga.direction === 'rtl'; 
+                const hasDoubleCover = !!currentManga.coverDouble;
                 
                 if (effectiveLandscape) {
-                    if (isDouble && currentManga.coverStart && currentManga.coverEnd) {
+                    if (hasDoubleCover) {
+                        spreads.push({ center: currentManga.coverDouble, info: "Jaquette Complète", pageIndices: [-1] });
+                    } else if (currentManga.isDoubleCover && currentManga.coverStart && currentManga.coverEnd) {
                         if (isRTL) spreads.push({ left: currentManga.coverStart, right: currentManga.coverEnd, info: "Couvertures", pageIndices: [-1] });
                         else spreads.push({ left: currentManga.coverEnd, right: currentManga.coverStart, info: "Couvertures", pageIndices: [-1] });
                     } else {
-                        const cover = currentManga.coverDouble || currentManga.coverStart;
+                        const cover = currentManga.coverStart || currentManga.cover;
                         if (cover) {
                             if (isRTL) spreads.push({ left: cover, right: null, info: "Couverture", pageIndices: [-1] });
                             else spreads.push({ left: null, right: cover, info: "Couverture", pageIndices: [-1] });
@@ -1634,12 +1713,12 @@
                         else if (isRTL) spreads.push({ left: p[i+1], right: p[i], info: `Pages ${i+2} - ${i+1}`, pageIndices: [i, i+1] });
                         else spreads.push({ left: p[i], right: p[i+1], info: `Pages ${i+1} - ${i+2}`, pageIndices: [i, i+1] });
                     }
-                    if (currentManga.coverEnd && !isDouble) {
+                    if (currentManga.coverEnd && !hasDoubleCover && !currentManga.isDoubleCover) {
                         if (isRTL) spreads.push({ left: null, right: currentManga.coverEnd, info: "Couverture Fin", pageIndices: [-2] });
                         else spreads.push({ left: currentManga.coverEnd, right: null, info: "Couverture Fin", pageIndices: [-2] });
                     }
                 } else {
-                    const startCover = currentManga.coverDouble || currentManga.coverStart;
+                    const startCover = currentManga.coverStart || currentManga.coverDouble || currentManga.cover;
                     if (startCover) spreads.push({ center: startCover, info: "Couverture Début", pageIndices: [-1] });
                     p.forEach((page, i) => spreads.push({ center: page, info: `Page ${i+1}`, pageIndices: [i] }));
                     if (currentManga.coverEnd) spreads.push({ center: currentManga.coverEnd, info: "Couverture Fin", pageIndices: [-2] });
@@ -1685,7 +1764,15 @@
                 });
             }, [cursor, prevCursor, drag.targetCursor, allSpreads, view]);
 
-            const handleOpenManga = useCallback((m, e) => {
+            const handleOpenManga = useCallback((m, e, skipAnimation = false) => {
+                if (skipAnimation) {
+                    setCurrentManga(m); 
+                    setCursor(m.bookmark != null ? m.bookmark : (m.progress || 0)); 
+                    setView('reader'); 
+                    setZenMode(true); 
+                    markAsRead(m);
+                    return;
+                }
                 let rect = { top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0 };
                 if (e && e.currentTarget) {
                     const coverNode = e.currentTarget.querySelector('.manga-cover-image');
@@ -2196,7 +2283,8 @@
                     setTimeout(() => {
                         const finalCursor = drag.targetCursor; setCursor(finalCursor);
                         if (currentManga && allSpreads) saveProgress(currentManga.id, finalCursor, finalCursor >= allSpreads.length - 1, allSpreads.length);
-                        setTimeout(() => { setDrag({ active: false, startX: 0, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false }); }, 150);
+                        // Réinitialisation instantanée au lieu d'attendre 150ms de plus
+                        setDrag({ active: false, startX: 0, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false });
                     }, 400);
                 } else {
                     if (drag.targetCursor !== null && drag.targetCursor >= allSpreads.length && drag.progress > 0.1) { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); }
@@ -2281,9 +2369,9 @@
                         <MangaInspector 
                             manga={inspectingManga} 
                             onClose={() => setInspectingManga(null)} 
-                            onRead={(m, e) => {
-                                handleOpenManga(m, e);
-                                setTimeout(() => setInspectingManga(null), 100);
+                            onRead={(m, e, skipAnim) => {
+                                handleOpenManga(m, e, skipAnim);
+                                setTimeout(() => setInspectingManga(null), skipAnim ? 0 : 100);
                             }}
                             isAnimatingOut={!!animatingManga}
                             onOpenMenu={(m) => {
@@ -2294,6 +2382,7 @@
                             hasNext={!!inspectorNext}
                             onPrev={() => { triggerHaptic(30); setInspectingManga(inspectorPrev); }}
                             onNext={() => { triggerHaptic(30); setInspectingManga(inspectorNext); }}
+                            effectiveLandscape={effectiveLandscape}
                         />
                     )}
 
