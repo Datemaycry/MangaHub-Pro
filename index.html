@@ -700,17 +700,14 @@
                     {/* ÉCRAN NOIR CINÉMATIQUE */}
                     <div className={`absolute inset-0 bg-black z-[2000] pointer-events-none transition-opacity duration-500 ease-out ${isOpening ? 'opacity-100' : 'opacity-0'}`}></div>
 
-                    {/* Flèches de navigation (elles profitent aussi du pourcentage de réduction pour l'iPhone) */}
-                    {hasPrev && (
-                        <button onClick={handlePrev} style={{ transform: `translateY(-50%) scale(${globalScale})` }} className={`absolute left-2 sm:left-8 top-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95 ${isOpening ? 'opacity-0 pointer-events-none' : ''}`}>
-                            <IconChevronLeft width="32" height="32" />
-                        </button>
-                    )}
-                    {hasNext && (
-                        <button onClick={handleNext} style={{ transform: `translateY(-50%) scale(${globalScale})` }} className={`absolute right-2 sm:right-8 top-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95 ${isOpening ? 'opacity-0 pointer-events-none' : ''}`}>
-                            <IconChevronRight width="32" height="32" />
-                        </button>
-                    )}
+                    {/* Flèches de navigation - Toujours visibles mais grisées aux extrémités de la pile pour plus de clarté UX */}
+                    <button onClick={handlePrev} disabled={!hasPrev} className={`absolute left-2 sm:left-8 md:left-12 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center backdrop-blur-md border transition-all z-[1600] ${isOpening ? 'opacity-0 pointer-events-none' : ''} ${hasPrev ? 'bg-black/50 hover:bg-theme-600/80 text-white border-white/10 hover:border-theme-400 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] cursor-pointer active:scale-95' : 'bg-black/20 text-white/20 border-white/5 shadow-none cursor-not-allowed opacity-50'}`}>
+                        <IconChevronLeft width="32" height="32" />
+                    </button>
+                    
+                    <button onClick={handleNext} disabled={!hasNext} className={`absolute right-2 sm:right-8 md:right-12 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center backdrop-blur-md border transition-all z-[1600] ${isOpening ? 'opacity-0 pointer-events-none' : ''} ${hasNext ? 'bg-black/50 hover:bg-theme-600/80 text-white border-white/10 hover:border-theme-400 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] cursor-pointer active:scale-95' : 'bg-black/20 text-white/20 border-white/5 shadow-none cursor-not-allowed opacity-50'}`}>
+                        <IconChevronRight width="32" height="32" />
+                    </button>
 
                     {/* === CANVAS VIRTUEL === */}
                     {/* Cette boîte reste mathématiquement parfaite et subit une réduction CSS pour les petits écrans */}
@@ -1237,104 +1234,121 @@
                             </div>
                         )}
 
-                        {/* LA BIBLIOTHÈQUE PHYSIQUE (ÉTAGÈRES) */}
-                        <div className="relative flex-1 w-full min-h-0 z-10">
-                            <div className="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar pt-4" style={{ paddingBottom: 'max(4rem, env(safe-area-inset-bottom))' }}>
+                        {/* LA BIBLIOTHÈQUE PHYSIQUE (ÉTAGÈRES CONTINUES) */}
+                        <div className="relative flex-1 w-full min-h-0 z-10 bg-[#050810]" style={{
+                            '--row-pt': 'clamp(20px, 3vh, 40px)',       // Espace vide au-dessus du livre
+                            '--row-book-h': 'clamp(160px, 28vh, 320px)',// Hauteur maximale du livre
+                            '--board-h': 'clamp(25px, 4vh, 45px)',      // Épaisseur de l'étagère
+                            '--row-total': 'calc(var(--row-pt) + var(--row-book-h) + var(--board-h))', // Hauteur stricte d'une ligne
+                            '--pillar-w': 'clamp(15px, 3vw, 40px)'      // Épaisseur des montants verticaux
+                        }}>
+                            
+                            {/* --- MONTANTS VERTICAUX FIXES (Bords de la bibliothèque) --- */}
+                            <div className="absolute top-0 bottom-0 left-0 z-[25] pointer-events-none shadow-[10px_0_30px_rgba(0,0,0,0.9)] border-r border-white/10" style={{ width: 'var(--pillar-w)', ...(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).board }}>
+                                {(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).texture && <div className={`absolute inset-0 ${(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).texture} pointer-events-none`}></div>}
+                                <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent pointer-events-none"></div>
+                            </div>
+                            
+                            <div className="absolute top-0 bottom-0 right-0 z-[25] pointer-events-none shadow-[-10px_0_30px_rgba(0,0,0,0.9)] border-l border-white/10" style={{ width: 'var(--pillar-w)', ...(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).board }}>
+                                {(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).texture && <div className={`absolute inset-0 ${(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).texture} pointer-events-none`}></div>}
+                                <div className="absolute inset-0 bg-gradient-to-l from-black/80 to-transparent pointer-events-none"></div>
+                            </div>
+
+                            {/* Le conteneur de scroll. */}
+                            <div className="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
                                 
-                                {/* Rendu des Piles en Flex Wrap - Espacements fluides basés sur viewport */}
-                                <div className="flex flex-wrap content-start items-end gap-x-0 w-full mx-auto pb-20 justify-start" style={{ rowGap: 'clamp(40px, 8vh, 80px)', paddingTop: 'clamp(10px, 2vh, 20px)' }}>
-                                    {libraryStructure.shelves.map((shelf) => {
-                                        const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
-                                        const isFaded = activeGroupFilter && activeGroupFilter !== shelf.title;
-                                        const isHighlighted = activeGroupFilter === shelf.title;
-
-                                        return (
-                                            <div key={shelf.title} className="relative flex flex-col group/shelf shrink-0 w-full">
-                                                {/* w-full FORCE l'étagère à traverser tout l'écran */}
-                                            
-                                                {/* Ligne des mangas - Bounding Box CSS (remplace le libScale JS) */}
-                                                <div className="relative flex items-end gap-[1px] sm:gap-[2px] md:gap-[3px] z-10 w-full overflow-x-auto shelf-scroll snap-x snap-mandatory px-4 md:px-8" style={{ height: 'clamp(200px, 35vh, 400px)' }}>
-                                                    {shelf.mangas.map((m, i) => {
-                                                        const isSelected = isSelectionMode && selectedMangas.has(m.id);
-                                                        const isDouble = !!m.coverDouble;
-                                                        const mainCover = m.coverStart || m.cover;
-                                                        const wrapCoverUrl = getCachedUrl(m.coverDouble);
-
-                                                        const bw = MANGA_PROPS.faceW;
-                                                        const bh = MANGA_PROPS.h;
-                                                        const bd = MANGA_PROPS.spineW;
-                                                        const wrapTotalW = (bw * 2) + bd; 
-                                                        const bgSizeSpine = `${(wrapTotalW / bd) * 100}% 100%`;
-                                                        
-                                                        return (
-                                                            <div key={m.id} onClick={(e) => { 
-                                                                if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); }
-                                                                else setInspectingManga(m); 
-                                                            }} className={`manga-cover-image group relative flex-none h-[95%] w-auto shadow-[-3px_0_8px_rgba(0,0,0,0.8)] cursor-pointer z-10 transition-all duration-300 snap-center rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : ''} ${isFaded ? 'opacity-30 grayscale-[0.8] brightness-50 pointer-events-none' : 'hover:-translate-y-4'}`} style={{ backgroundColor: '#0f172a', aspectRatio: `${bd} / ${bh}` }}>
-                                                                
-                                                                {/* Miniature Cover flottante */}
-                                                                <div className="hidden sm:block absolute bottom-[105%] left-1/2 -translate-x-1/2 mb-2 bg-black rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.9)] opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none scale-90 group-hover:scale-100 z-50 overflow-hidden border border-white/10 origin-bottom" style={{ height: '240px', aspectRatio: `${bw} / ${bh}` }}>
-                                                                    <StackThumbnail file={mainCover} contain={true} />
-                                                                </div>
-                                                                
-                                                                {/* Tranche Content */}
-                                                                <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[2px]">
-                                                                    {isDouble && wrapCoverUrl ? (
-                                                                        <>
-                                                                            <div className="w-full h-full opacity-90 group-hover:opacity-100 transition-opacity" style={{ backgroundImage: `url(${wrapCoverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: 'center center', backgroundRepeat: 'no-repeat' }}></div>
-                                                                            <div className="absolute inset-0 bg-black/10 mix-blend-multiply pointer-events-none"></div>
-                                                                        </>
-                                                                    ) : (
-                                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                                            <span className={`${themeDef.text} group-hover:text-white font-black uppercase tracking-widest overflow-hidden whitespace-nowrap [text-overflow:clip] text-center leading-none transition-colors absolute`} style={{ transform: 'rotate(90deg)', textShadow: themeDef.textShadow, fontSize: 'clamp(10px, 1.8vh, 14px)', width: 'max-content', padding: '0 10px' }}>
-                                                                                {m.title}
-                                                                            </span>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-
-                                                                {/* Mode Sélection Checkmark */}
-                                                                {isSelectionMode && (
-                                                                    <div className={`absolute inset-0 z-30 flex items-center justify-center transition-all rounded-[2px] ${isSelected ? 'bg-theme-900/60 backdrop-blur-[2px]' : 'bg-black/40 group-hover:bg-black/20'}`}>
-                                                                        <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-theme-500 bg-theme-500 text-white shadow-[0_0_15px_rgba(var(--theme-rgb),0.8)]' : 'border-white/50 text-transparent'}`}>
-                                                                            <IconCheck width="12" height="12" strokeWidth="3" />
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Effet Plat Tranche Manga */}
-                                                                <div className="absolute inset-0 border-l border-white/20 border-r border-black/80 pointer-events-none rounded-[2px]"></div>
-                                                                <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/60 pointer-events-none opacity-50 rounded-[2px]"></div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                    
-                                                    {/* Serre-Livres Proportionnel */}
-                                                    <div className={`flex-none h-[95%] shadow-[-5px_0_15px_rgba(0,0,0,0.8)] border-l border-t relative z-20 flex flex-col justify-end items-center transition-all duration-500 rounded-tr-[2px] ${isFaded ? 'opacity-50 grayscale-[0.5] brightness-75' : 'opacity-100'}`} style={{ width: 'clamp(15px, 2.5vh, 30px)', ...themeDef.bookend }}>
-                                                        <div className="w-1/2 h-full bg-black/20 absolute left-0 pointer-events-none"></div>
-                                                        <div className="w-full h-3 bg-black/40 absolute bottom-0 pointer-events-none"></div>
+                                <div className="relative min-h-full w-full">
+                                    
+                                    {/* --- DÉCORS DE FOND : Les 100 planches d'étagères générées automatiquement --- */}
+                                    <div className="absolute top-0 left-0 w-full flex flex-col pointer-events-none z-0">
+                                        {Array.from({ length: 100 }).map((_, i) => {
+                                            const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
+                                            return (
+                                                <div key={i} className="w-full flex-none flex flex-col justify-end" style={{ height: 'var(--row-total)' }}>
+                                                    <div className="w-full shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 border-t border-white/5" style={{ height: 'var(--board-h)', ...themeDef.board }}>
+                                                        {themeDef.texture && <div className={`absolute inset-0 ${themeDef.texture} pointer-events-none`}></div>}
                                                     </div>
-                                                    
-                                                    {/* Marge de fin pour pouvoir scroller au-delà du dernier livre */}
-                                                    <div className="flex-none w-4 md:w-10 h-full"></div>
                                                 </div>
+                                            );
+                                        })}
+                                    </div>
 
-                                                {/* Planche de l'étagère Proportionnelle */}
-                                                <div 
-                                                    onClick={() => setActiveGroupFilter(prev => prev === shelf.title ? null : shelf.title)}
-                                                    className={`w-full border-t shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 transition-all duration-500 cursor-pointer flex items-center justify-center group/board ${isFaded ? 'opacity-70 grayscale-[0.5]' : 'opacity-100'}`} 
-                                                    style={{ height: 'clamp(30px, 5vh, 50px)', ...themeDef.board }}
-                                                    title="Filtrer par cette série"
-                                                >
-                                                    {themeDef.texture && <div className={`absolute inset-0 ${themeDef.texture} pointer-events-none`}></div>}
-                                                    <span className={`${themeDef.text} font-black uppercase tracking-[0.3em] transition-all absolute px-4 text-center whitespace-nowrap pointer-events-none z-30 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isHighlighted ? 'opacity-100 scale-110 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'opacity-0 group-hover/board:opacity-100'}`} style={{ textShadow: themeDef.textShadow, fontSize: 'clamp(10px, 1.8vh, 14px)' }}>
-                                                        {shelf.title !== "Volumes Indépendants" ? shelf.title : "Indépendants"}
-                                                    </span>
+                                    {/* --- CONTENU FOREGROUND : Les mangas et séparateurs --- */}
+                                    {/* flex-wrap permet le retour à la ligne magique. On ajoute un padding dynamique pour caler les livres entre les piliers. */}
+                                    <div className="relative z-10 flex flex-wrap content-start items-start justify-start w-full" style={{ paddingLeft: 'var(--pillar-w)', paddingRight: 'var(--pillar-w)', paddingBottom: 'max(6rem, env(safe-area-inset-bottom))' }}>
+                                        {libraryStructure.flattened.map((item, i) => {
+                                            const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
+                                            
+                                            // Rendu d'un séparateur de série (Le Serre-Livre Vertical)
+                                            if (item.type === 'separator') {
+                                                const isFadedSep = activeGroupFilter !== null;
+                                                return (
+                                                    <div key={item.key} className={`flex-none flex items-end relative transition-all duration-500 ${isFadedSep ? 'opacity-30 grayscale brightness-50' : 'opacity-100'}`} style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
+                                                        <div className="flex-none shadow-[-5px_0_15px_rgba(0,0,0,0.8)] border-l border-t border-white/10 relative z-20 rounded-t-[2px] h-[90%]" style={{ width: 'clamp(10px, 1.5vh, 20px)', ...themeDef.bookend }}>
+                                                            <div className="w-1/2 h-full bg-black/30 absolute left-0 pointer-events-none"></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            // Rendu d'un Manga
+                                            const m = item.data;
+                                            const isSelected = isSelectionMode && selectedMangas.has(m.id);
+                                            const isFaded = activeGroupFilter && activeGroupFilter !== item.group;
+                                            
+                                            const isDouble = !!m.coverDouble;
+                                            const mainCover = m.coverStart || m.cover;
+                                            const wrapCoverUrl = getCachedUrl(m.coverDouble);
+
+                                            const bw = MANGA_PROPS.faceW;
+                                            const bh = MANGA_PROPS.h;
+                                            const bd = MANGA_PROPS.spineW;
+                                            const wrapTotalW = (bw * 2) + bd; 
+                                            const bgSizeSpine = `${(wrapTotalW / bd) * 100}% 100%`;
+
+                                            return (
+                                                <div key={m.id} className="flex-none flex items-end relative group/book" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
+                                                    
+                                                    {/* Tranche 3D du Livre - Ombre avec spread négatif (-4px) pour qu'elle ne bave plus sur les livres à gauche */}
+                                                    <div onClick={(e) => { 
+                                                        if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); }
+                                                        else setInspectingManga(m); 
+                                                    }} className={`manga-cover-image relative flex-none shadow-[0_8px_10px_-4px_rgba(0,0,0,0.8)] cursor-pointer z-10 transition-all duration-300 rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : ''} ${isFaded ? 'opacity-30 grayscale-[0.8] brightness-50 pointer-events-none' : 'hover:-translate-y-4'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))` }}>
+                                                        
+                                                        {/* Miniature Cover flottante (Masquée sur mobile, visible sur Desktop) */}
+                                                        <div className="hidden sm:block absolute bottom-[105%] left-1/2 -translate-x-1/2 mb-2 bg-black rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.9)] opacity-0 group-hover/book:opacity-100 transition-all duration-300 pointer-events-none scale-90 group-hover/book:scale-100 z-50 overflow-hidden border border-white/10 origin-bottom" style={{ height: '240px', width: `calc(240px * (${bw} / ${bh}))` }}>
+                                                            <StackThumbnail file={mainCover} contain={true} />
+                                                        </div>
+                                                        
+                                                        {/* Contenu de la tranche (Nettoyé de tout assombrissement) */}
+                                                        <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[2px] bg-[#0f172a]">
+                                                            {isDouble && wrapCoverUrl ? (
+                                                                <div className="w-full h-full opacity-100 transition-opacity" style={{ backgroundImage: `url(${wrapCoverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: 'center center', backgroundRepeat: 'no-repeat' }}></div>
+                                                            ) : (
+                                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                                    <span className={`${themeDef.text} group-hover/book:text-white font-black uppercase tracking-widest overflow-hidden whitespace-nowrap [text-overflow:clip] text-center leading-none transition-colors absolute`} style={{ transform: 'rotate(90deg)', textShadow: themeDef.textShadow, fontSize: 'clamp(9px, 1.6vh, 13px)', width: 'max-content', padding: '0 10px' }}>
+                                                                        {m.title}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Mode Sélection Checkmark */}
+                                                        {isSelectionMode && (
+                                                            <div className={`absolute inset-0 z-30 flex items-center justify-center transition-all rounded-[2px] ${isSelected ? 'bg-theme-900/60 backdrop-blur-[2px]' : 'bg-black/40 group-hover/book:bg-black/20'}`}>
+                                                                <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-theme-500 bg-theme-500 text-white shadow-[0_0_15px_rgba(var(--theme-rgb),0.8)]' : 'border-white/50 text-transparent'}`}>
+                                                                    <IconCheck width="12" height="12" strokeWidth="3" />
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Effet Plat Tranche Manga - Uniquement les bordures pour le volume, pas de fond noir */}
+                                                        <div className="absolute inset-0 border-l border-white/20 border-r border-black/20 pointer-events-none rounded-[2px]"></div>
+                                                    </div>
                                                 </div>
-                                                
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2093,7 +2107,19 @@
 
                 sortedShelves.forEach(s => s.mangas.sort((a,b) => a.title.localeCompare(b.title, undefined, {numeric: true})));
 
-                return { shelves: sortedShelves, allAvailableTags };
+                // NOUVEAU : On aplatit tout en une seule liste fluide avec des séparateurs
+                const flattened = [];
+                sortedShelves.forEach((shelf, shelfIndex) => {
+                    shelf.mangas.forEach((m, mIndex) => {
+                        flattened.push({ type: 'manga', data: m, group: shelf.title, isFirst: mIndex === 0 });
+                    });
+                    // On ajoute un séparateur (serre-livre) après chaque série, sauf la dernière
+                    if (shelfIndex < sortedShelves.length - 1) {
+                        flattened.push({ type: 'separator', key: `sep-${shelfIndex}` });
+                    }
+                });
+
+                return { shelves: sortedShelves, flattened, allAvailableTags };
             }, [mangas, search, activeTags, showBookmarksOnly]);
 
             const prevOrientation = useRef(effectiveLandscape);
