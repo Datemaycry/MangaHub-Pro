@@ -122,8 +122,8 @@
         .artifact-spin-ltr { animation: artifactSpinLTR 16s linear infinite; }
         
         /* Transition UI */
-        @keyframes readerEnter { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: scale(1); } }
-        .animate-reader-enter { animation: readerEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+        @keyframes readerEnter { from { opacity: 0; } to { opacity: 1; } }
+        .animate-reader-enter { animation: readerEnter 0.4s ease-out forwards; }
         @keyframes hubEnter { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
         .animate-hub-enter { animation: hubEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
     </style>
@@ -632,11 +632,12 @@
                     dragInfo.current.hasDragged = false;
                     return;
                 }
+                setAutoSpin(false); // On fige l'animation flottante et rotative
                 setIsOpening(true);
                 setTimeout(() => {
                     const fakeEvent = { currentTarget: document.getElementById('inspect-book-container') };
                     onRead(manga, fakeEvent, true);
-                }, 700);
+                }, 500); // 500ms pour correspondre au fondu au noir complet
             };
 
             // --- ANIMATION STYLE TOMB RAIDER (SLIDE 3D) ---
@@ -682,21 +683,25 @@
             }
 
             return (
-                <div className={`fixed inset-0 z-[1500] flex items-center justify-center bg-black/80 backdrop-blur-xl transition-opacity duration-500 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'}`} onClick={onClose}>
+                <div className={`fixed inset-0 z-[1500] flex items-center justify-center transition-all duration-500 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'} bg-black/80 backdrop-blur-xl`} onClick={onClose}>
                     
+                    {/* ÉCRAN NOIR CINÉMATIQUE (Fondu au noir pur sur tout l'écran) */}
+                    <div className={`absolute inset-0 bg-black z-[2000] pointer-events-none transition-opacity duration-500 ease-out ${isOpening ? 'opacity-100' : 'opacity-0'}`}></div>
+
                     {/* Flèches de navigation inter-pile */}
                     {hasPrev && (
-                        <button onClick={handlePrev} className="absolute left-4 sm:left-8 md:left-12 xl:left-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95">
+                        <button onClick={handlePrev} className={`absolute left-4 sm:left-8 md:left-12 xl:left-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95 ${isOpening ? 'opacity-0 pointer-events-none' : ''}`}>
                             <IconChevronLeft width="32" height="32" />
                         </button>
                     )}
                     {hasNext && (
-                        <button onClick={handleNext} className="absolute right-4 sm:right-8 md:right-12 xl:right-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95">
+                        <button onClick={handleNext} className={`absolute right-4 sm:right-8 md:right-12 xl:right-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95 ${isOpening ? 'opacity-0 pointer-events-none' : ''}`}>
                             <IconChevronRight width="32" height="32" />
                         </button>
                     )}
 
-                    <div className="relative flex flex-col items-center gap-12 sm:gap-16 w-full max-w-2xl px-4" onClick={e => e.stopPropagation()}>
+                    {/* Le bloc entier s'estompe simplement sans zoom ni flou pour une transition pure */}
+                    <div className={`relative flex flex-col items-center gap-12 sm:gap-16 w-full max-w-2xl px-4 transition-opacity duration-500 ease-out ${isOpening ? 'opacity-0' : 'opacity-100'}`} onClick={e => e.stopPropagation()}>
                         
                         {/* Wrapper Perspective */}
                         <div style={{ perspective: '2000px' }} className="flex justify-center items-center mt-10 z-[1900]">
@@ -708,15 +713,18 @@
                                     style={{ 
                                         width: `${bw}px`, height: `${bh}px`, 
                                         animation: 'artifactFloat 6s ease-in-out infinite', 
+                                        animationPlayState: isOpening ? 'paused' : 'running',
                                         transformStyle: 'preserve-3d', 
-                                        transform: `scale(${scale}) translateY(0px)`,
-                                        transition: 'transform 0.4s cubic-bezier(0.5, 0, 0.2, 1)'
+                                        transform: `scale(${scale}) translateY(0px)`
                                     }} 
                                     onClick={handleReadClick}
                                     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
                                     
-                                    {/* 3D Spin Wrapper */}
-                                    <div className="w-full h-full relative" style={{ transformStyle: 'preserve-3d', transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)` }}>
+                                    {/* 3D Spin Wrapper - Reste figé dans son angle exact */}
+                                    <div className="w-full h-full relative" style={{ 
+                                        transformStyle: 'preserve-3d', 
+                                        transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)`
+                                    }}>
                                         
                                         {/* Face Avant (Couverture Début) */}
                                         <div className="absolute inset-0" style={{ transform: `translateZ(${bd/2}px)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
@@ -768,7 +776,7 @@
                         </div>
 
                         {/* Méta-données & Boutons d'action */}
-                        <div className="flex flex-col items-center gap-6 animate-slide-up w-full z-30 mt-8" style={{ opacity: trState === 'idle' ? 1 : 0, transition: 'all 0.3s ease' }}>
+                        <div className={`flex flex-col items-center gap-6 w-full z-30 mt-8 transition-opacity duration-500 ${isOpening ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                             <div className="text-center px-4">
                                 <span className="text-theme-400 font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2 block drop-shadow-md">
                                     {manga.group || "Volume Indépendant"}
