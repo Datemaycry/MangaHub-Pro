@@ -1105,6 +1105,19 @@
 
             const [activeGroupFilter, setActiveGroupFilter] = useState(null);
 
+            // --- ÉCHELLE PROPORTIONNELLE DE LA BIBLIOTHÈQUE (Virtual Canvas) ---
+            const [libScale, setLibScale] = useState(1);
+            useEffect(() => {
+                const updateScale = () => {
+                    const w = window.innerWidth;
+                    const newScale = Math.min(1.2, Math.max(0.45, w / 900));
+                    setLibScale(newScale);
+                };
+                updateScale();
+                window.addEventListener('resize', updateScale);
+                return () => window.removeEventListener('resize', updateScale);
+            }, []);
+
             return (
                 <div 
                     className="flex flex-col h-full w-full mx-auto relative animate-hub-enter"
@@ -1242,8 +1255,8 @@
                             {/* overflow-x-hidden est essentiel ici pour éviter un scroll horizontal de la page entière à cause des étagères qui fusionnent */}
                             <div className="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-6 pt-4" style={{ paddingBottom: 'max(4rem, env(safe-area-inset-bottom))' }}>
                                 
-                                {/* Rendu des Piles en Flex Wrap - gap-x-0 pour coller les piles entre elles */}
-                                <div className="flex flex-wrap content-start items-end gap-x-0 gap-y-20 w-full mx-auto mt-4 pb-20 justify-start">
+                                {/* Rendu des Piles en Flex Wrap - Espacements fluides basés sur l'échelle */}
+                                <div className="flex flex-wrap content-start items-end gap-x-0 w-full mx-auto pb-20 justify-start" style={{ rowGap: `${80 * libScale}px`, paddingTop: `${16 * libScale}px` }}>
                                     {libraryStructure.shelves.map((shelf) => {
                                         const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
                                         const isFaded = activeGroupFilter && activeGroupFilter !== shelf.title;
@@ -1252,16 +1265,14 @@
                                         return (
                                         <div key={shelf.title} className="relative flex flex-col group/shelf shrink-0 max-w-full">
                                             
-                                            {/* Ligne des mangas de cette pile */}
-                                            <div className="relative flex items-end gap-[1px] sm:gap-[2px] md:gap-[3px] z-10 max-w-full overflow-x-auto shelf-scroll snap-x snap-mandatory" style={{ height: 'clamp(200px, 45vh, 800px)' }}>
+                                            {/* Ligne des mangas de cette pile - Hauteur fixe proportionnelle */}
+                                            <div className="relative flex items-end gap-[1px] sm:gap-[2px] md:gap-[3px] z-10 max-w-full overflow-x-auto shelf-scroll snap-x snap-mandatory" style={{ height: `${400 * libScale}px` }}>
                                                 {shelf.mangas.map((m, i) => {
                                                     const isSelected = isSelectionMode && selectedMangas.has(m.id);
                                                     const isDouble = !!m.coverDouble;
                                                     const mainCover = m.coverStart || m.cover;
                                                     const wrapCoverUrl = getCachedUrl(m.coverDouble);
 
-                                                    // Utilisation des proportions globales mathématiques 
-                                                    // pour garantir que l'étagère match la vue 3D à 100%
                                                     const bw = MANGA_PROPS.faceW;
                                                     const bh = MANGA_PROPS.h;
                                                     const bd = MANGA_PROPS.spineW;
@@ -1274,12 +1285,12 @@
                                                             else setInspectingManga(m); 
                                                         }} className={`manga-cover-image group relative flex-none h-[95%] w-auto shadow-[-3px_0_8px_rgba(0,0,0,0.8)] cursor-pointer z-10 transition-all duration-300 snap-center rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : ''} ${isFaded ? 'opacity-30 grayscale-[0.8] brightness-50 pointer-events-none' : 'hover:-translate-y-4'}`} style={{ backgroundColor: '#0f172a', aspectRatio: `${bd} / ${bh}` }}>
                                                             
-                                                            {/* Miniature Cover flottante */}
-                                                            <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 mb-2 w-28 sm:w-36 bg-black rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.9)] opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none scale-90 group-hover:scale-100 z-50 overflow-hidden border border-white/10 origin-bottom" style={{ aspectRatio: `${bw} / ${bh}` }}>
+                                                            {/* Miniature Cover flottante proportionnelle */}
+                                                            <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 mb-2 bg-black rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.9)] opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none scale-90 group-hover:scale-100 z-50 overflow-hidden border border-white/10 origin-bottom" style={{ width: `${160 * libScale}px`, aspectRatio: `${bw} / ${bh}` }}>
                                                                 <StackThumbnail file={mainCover} contain={true} />
                                                             </div>
                                                             
-                                                            {/* Tranche Content (Pleine hauteur, zéro rognage vertical) */}
+                                                            {/* Tranche Content */}
                                                             <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[2px]">
                                                                 {isDouble && wrapCoverUrl ? (
                                                                     <>
@@ -1288,7 +1299,7 @@
                                                                     </>
                                                                 ) : (
                                                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                                        <span className={`${themeDef.text} group-hover:text-white font-black text-[9px] sm:text-[10px] uppercase tracking-widest overflow-hidden whitespace-nowrap [text-overflow:clip] text-center w-[200px] leading-none transition-colors absolute`} style={{ transform: 'rotate(90deg)', textShadow: themeDef.textShadow }}>
+                                                                        <span className={`${themeDef.text} group-hover:text-white font-black uppercase tracking-widest overflow-hidden whitespace-nowrap [text-overflow:clip] text-center leading-none transition-colors absolute`} style={{ transform: 'rotate(90deg)', textShadow: themeDef.textShadow, fontSize: `${12 * libScale}px`, width: `${300 * libScale}px` }}>
                                                                             {m.title}
                                                                         </span>
                                                                     </div>
@@ -1304,29 +1315,29 @@
                                                                 </div>
                                                             )}
 
-                                                            {/* Effet Plat Tranche Manga (Bords nets) */}
+                                                            {/* Effet Plat Tranche Manga */}
                                                             <div className="absolute inset-0 border-l border-white/20 border-r border-black/80 pointer-events-none rounded-[2px]"></div>
                                                             <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/60 pointer-events-none opacity-50 rounded-[2px]"></div>
                                                         </div>
                                                     );
                                                 })}
                                                 
-                                                {/* Serre-Livres (séparateur visuel direct avec la pile suivante) */}
-                                                <div className={`flex-none w-3 sm:w-4 md:w-5 lg:w-6 xl:w-7 h-[95%] shadow-[-5px_0_15px_rgba(0,0,0,0.8)] border-l border-t relative z-20 flex flex-col justify-end items-center transition-all duration-500 rounded-tr-[2px] ${isFaded ? 'opacity-50 grayscale-[0.5] brightness-75' : 'opacity-100'}`} style={{ ...themeDef.bookend }}>
+                                                {/* Serre-Livres Proportionnel */}
+                                                <div className={`flex-none h-[95%] shadow-[-5px_0_15px_rgba(0,0,0,0.8)] border-l border-t relative z-20 flex flex-col justify-end items-center transition-all duration-500 rounded-tr-[2px] ${isFaded ? 'opacity-50 grayscale-[0.5] brightness-75' : 'opacity-100'}`} style={{ width: `${30 * libScale}px`, ...themeDef.bookend }}>
                                                     <div className="w-1/2 h-full bg-black/20 absolute left-0 pointer-events-none"></div>
                                                     <div className="w-full h-3 bg-black/40 absolute bottom-0 pointer-events-none"></div>
                                                 </div>
                                             </div>
 
-                                            {/* Planche de l'étagère avec Filtre (Le titre est superposé en mode invisible sans filtre) */}
+                                            {/* Planche de l'étagère Proportionnelle */}
                                             <div 
                                                 onClick={() => setActiveGroupFilter(prev => prev === shelf.title ? null : shelf.title)}
-                                                className={`h-8 sm:h-10 md:h-12 w-full border-t shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 transition-all duration-500 cursor-pointer flex items-center justify-center group/board ${isFaded ? 'opacity-70 grayscale-[0.5]' : 'opacity-100'}`} 
-                                                style={{ ...themeDef.board }}
+                                                className={`w-full border-t shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 transition-all duration-500 cursor-pointer flex items-center justify-center group/board ${isFaded ? 'opacity-70 grayscale-[0.5]' : 'opacity-100'}`} 
+                                                style={{ height: `${50 * libScale}px`, ...themeDef.board }}
                                                 title="Filtrer par cette série"
                                             >
                                                 {themeDef.texture && <div className={`absolute inset-0 ${themeDef.texture} pointer-events-none`}></div>}
-                                                <span className={`${themeDef.text} font-black text-[9px] sm:text-[10px] uppercase tracking-[0.3em] transition-all absolute px-2 text-center whitespace-nowrap pointer-events-none z-30 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isHighlighted ? 'opacity-100 scale-110 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'opacity-0 group-hover/board:opacity-100'}`} style={{ textShadow: themeDef.textShadow }}>
+                                                <span className={`${themeDef.text} font-black uppercase tracking-[0.3em] transition-all absolute px-2 text-center whitespace-nowrap pointer-events-none z-30 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isHighlighted ? 'opacity-100 scale-110 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'opacity-0 group-hover/board:opacity-100'}`} style={{ textShadow: themeDef.textShadow, fontSize: `${12 * libScale}px` }}>
                                                     {shelf.title !== "Volumes Indépendants" ? shelf.title : "Indépendants"}
                                                 </span>
                                             </div>
