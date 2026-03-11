@@ -1,0 +1,2344 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta id="meta-viewport" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MangaHub Pro</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MangaHub">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2232/2232688.png">
+    <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22MangaHub%20Pro%22%2C%22short_name%22%3A%22MangaHub%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23000000%22%2C%22theme_color%22%3A%22%230f172a%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fcdn-icons-png.flaticon.com%2F512%2F2232%2F2232688.png%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fpng%22%2C%22purpose%22%3A%22any%20maskable%22%7D%5D%7D">
+    <meta name="theme-color" content="#0f172a">
+    
+    <!-- React & Tailwind -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        theme: {
+                            100: 'rgba(var(--theme-100), <alpha-value>)', 200: 'rgba(var(--theme-200), <alpha-value>)',
+                            300: 'rgba(var(--theme-300), <alpha-value>)', 400: 'rgba(var(--theme-400), <alpha-value>)',
+                            500: 'rgba(var(--theme-500), <alpha-value>)', 600: 'rgba(var(--theme-600), <alpha-value>)',
+                            800: 'rgba(var(--theme-800), <alpha-value>)', 900: 'rgba(var(--theme-900), <alpha-value>)',
+                            950: 'rgba(var(--theme-950), <alpha-value>)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
+    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        :root { --theme-rgb: 10, 70, 255; --theme-100: 224, 236, 255; --theme-200: 193, 216, 255; --theme-300: 148, 187, 255; --theme-400: 97, 149, 255; --theme-500: 38, 109, 255; --theme-600: 10, 70, 255; --theme-800: 0, 40, 153; --theme-900: 0, 25, 102; --theme-950: 0, 15, 51; }
+        body[data-theme="red"] { --theme-rgb: 255, 0, 85; --theme-100: 255, 228, 230; --theme-200: 254, 205, 211; --theme-300: 253, 164, 175; --theme-400: 251, 113, 133; --theme-500: 255, 0, 85; --theme-600: 225, 29, 72; --theme-800: 159, 18, 57; --theme-900: 136, 19, 55; --theme-950: 76, 5, 25; }
+        body[data-theme="green"] { --theme-rgb: 57, 255, 20; --theme-100: 220, 253, 230; --theme-200: 187, 250, 206; --theme-300: 134, 239, 172; --theme-400: 74, 222, 128; --theme-500: 57, 255, 20; --theme-600: 22, 163, 74; --theme-800: 22, 101, 52; --theme-900: 20, 83, 45; --theme-950: 5, 46, 22; }
+        body[data-theme="purple"] { --theme-rgb: 213, 0, 255; --theme-100: 250, 232, 255; --theme-200: 243, 204, 255; --theme-300: 233, 168, 255; --theme-400: 222, 104, 255; --theme-500: 213, 0, 255; --theme-600: 162, 28, 175; --theme-800: 107, 33, 168; --theme-900: 88, 28, 135; --theme-950: 59, 7, 100; }
+        body[data-theme="yellow"] { --theme-rgb: 255, 234, 0; --theme-100: 254, 252, 216; --theme-200: 254, 240, 138; --theme-300: 253, 224, 71; --theme-400: 250, 204, 21; --theme-500: 255, 234, 0; --theme-600: 202, 138, 4; --theme-800: 133, 77, 14; --theme-900: 113, 63, 18; --theme-950: 66, 32, 6; }
+
+        html, body, #root { height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #000 !important; font-family: 'Inter', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+        .gpu-accelerated { transform: translateZ(0); backface-visibility: hidden; -webkit-backface-visibility: hidden; perspective: 1500px; will-change: transform; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb), 0.4); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(var(--theme-rgb), 0.8); }
+        .shelf-scroll::-webkit-scrollbar { display: none; }
+        .shelf-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .reader-viewport { position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; background-color: #000; z-index: 100; transform-style: preserve-3d; touch-action: none; }
+        .reader-img { width: 100% !important; height: 100% !important; display: block; object-fit: contain; pointer-events: none; will-change: transform, filter; transition: filter 0.4s ease; z-index: 10;}
+        .night-mode-active .reader-img { filter: sepia(0.4) brightness(0.7) contrast(0.95) !important; }
+        .reader-ui-top { position: absolute; top: 0; left: 0; right: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.9) 10%, transparent); padding: 20px; padding-top: max(20px, env(safe-area-inset-top)); z-index: 120; transition: transform 0.4s, opacity 0.4s; will-change: transform, opacity; }
+        .reader-ui-bottom { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.9) 10%, transparent); padding: 25px; padding-bottom: max(25px, env(safe-area-inset-bottom)); z-index: 120; display: flex; justify-content: center; transition: transform 0.4s, opacity 0.4s; will-change: transform, opacity; }
+        .zen-mode-active .reader-ui-top { opacity: 0; pointer-events: none; transform: translateY(-100%); }
+        .zen-mode-active .reader-ui-bottom { opacity: 0; pointer-events: none; transform: translateY(100%); }
+        .double-layout { display: flex; width: 100vw; height: 100%; gap: 0; align-items: center; justify-content: center; perspective: 2000px; transform-style: preserve-3d; }
+        .page-wrapper-left { width: 50vw; height: 100%; display: flex; justify-content: flex-end; align-items: center; transform-origin: right center; transform-style: preserve-3d; position: relative;}
+        .page-wrapper-right { width: 50vw; height: 100%; display: flex; justify-content: flex-start; align-items: center; transform-origin: left center; transform-style: preserve-3d; position: relative;}
+        .img-left { object-position: right center; margin-right: -0.25px; }
+        .img-right { object-position: left center; margin-left: -0.25px; }
+
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes pureFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade { animation: pureFadeIn 0.2s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        @keyframes enterRepliRTL { from { transform: perspective(2000px) rotateY(-90deg); filter: brightness(0.3); } to { transform: perspective(2000px) rotateY(0deg); filter: brightness(1); } }
+        @keyframes enterRepliLTR { from { transform: perspective(2000px) rotateY(90deg); filter: brightness(0.3); } to { transform: perspective(2000px) rotateY(0deg); filter: brightness(1); } }
+        .animate-enter-next-rtl { animation: enterRepliRTL 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; transform-origin: left center; }
+        .animate-enter-prev-rtl { animation: enterRepliLTR 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; transform-origin: right center; }
+        .animate-enter-next-ltr { animation: enterRepliLTR 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; transform-origin: right center; }
+        .animate-enter-prev-ltr { animation: enterRepliRTL 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; transform-origin: left center; }
+
+        @keyframes flipRepliLeft { from { transform: perspective(2000px) rotateY(90deg); filter: brightness(0.4); } to { transform: perspective(2000px) rotateY(0deg); filter: brightness(1); } }
+        @keyframes flipRepliRight { from { transform: perspective(2000px) rotateY(-90deg); filter: brightness(0.4); } to { transform: perspective(2000px) rotateY(0deg); filter: brightness(1); } }
+        .animate-repli-left { transform-origin: right center; animation: flipRepliLeft 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+        .animate-repli-right { transform-origin: left center; animation: flipRepliRight 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+        @keyframes edgeGlow { 0% { opacity: 0; width: 0; } 50% { opacity: 0.8; width: 80px; } 100% { opacity: 0; width: 120px; } }
+        .animate-edge-glow-left { animation: edgeGlow 0.4s ease-out forwards; left: 0; background: linear-gradient(to right, rgba(255,255,255,0.15), transparent); }
+        .animate-edge-glow-right { animation: edgeGlow 0.4s ease-out forwards; right: 0; background: linear-gradient(to left, rgba(255,255,255,0.15), transparent); }
+
+        .custom-range { -webkit-appearance: none; outline: none; background: #334155; }
+        .custom-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; border-radius: 50%; background: rgb(var(--theme-500)); cursor: pointer; box-shadow: 0 0 20px rgba(var(--theme-rgb), 0.8); border: 3px solid white; transition: transform 0.1s; }
+        .custom-range::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+        @keyframes auraBlob1 { 0%, 100% { transform: translate(0px, 0px) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } }
+        @keyframes auraBlob2 { 0%, 100% { transform: translate(0px, 0px) scale(1); } 33% { transform: translate(-50px, 30px) scale(0.9); } 66% { transform: translate(20px, -20px) scale(1.1); } }
+        .aura-blob-1 { animation: auraBlob1 15s infinite alternate ease-in-out; }
+        .aura-blob-2 { animation: auraBlob2 18s infinite alternate ease-in-out; }
+        .ambilight-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(60px) brightness(0.4); transform: translateZ(0) scale(1.2); z-index: 0; opacity: 0.8; pointer-events: none; }
+
+        /* Animation Artifact 3D Tomb Raider - Boîte géométrique parfaite */
+        @keyframes artifactFloat {
+            0%, 100% { transform: translateY(0px) rotateX(5deg); }
+            50% { transform: translateY(-15px) rotateX(12deg); }
+        }
+        @keyframes artifactSpinRTL {
+            from { transform: rotateY(-15deg); }
+            to { transform: rotateY(-375deg); }
+        }
+        @keyframes artifactSpinLTR {
+            from { transform: rotateY(15deg); }
+            to { transform: rotateY(375deg); }
+        }
+        .artifact-spin-rtl { animation: artifactSpinRTL 16s linear infinite; }
+        .artifact-spin-ltr { animation: artifactSpinLTR 16s linear infinite; }
+        
+        /* Transition UI */
+        @keyframes readerEnter { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: scale(1); } }
+        .animate-reader-enter { animation: readerEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+        @keyframes hubEnter { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        .animate-hub-enter { animation: hubEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        window.addEventListener('touchmove', function(e) { 
+            if (window.visualViewport && window.visualViewport.scale > 1.05) return;
+            if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'range') return;
+            if (e.target.closest('.custom-scrollbar') === null && e.target.closest('.shelf-scroll') === null) e.preventDefault(); 
+        }, {passive: false});
+        MobileDragDrop.polyfill({ holdToDrag: 250 });
+
+        const { useState, useEffect, useMemo, useRef, useCallback, memo } = React;
+
+        // === CONSTANTES GLOBALES DE PROPORTION MANGA ===
+        // Ces valeurs garantissent que l'objet 3D et les tranches sur l'étagère partagent les mêmes mathématiques.
+        const MANGA_PROPS = {
+            faceW: 215, // Largeur de la face avant/arrière
+            h: 320,     // Hauteur du livre
+            spineW: 24  // Épaisseur de la tranche
+        };
+
+        // --- UTILS & DB ---
+        const DB_NAME = "MangaHub_V12"; 
+        const STORE_MANGAS = "mangas";
+        const STORE_PAGES = "pages";
+
+        const getSafeStorage = (key, defaultVal) => { try { return localStorage.getItem(key) || defaultVal; } catch(e) { return defaultVal; } };
+        const setSafeStorage = (key, val) => { try { localStorage.setItem(key, val); } catch(e) {} };
+        const triggerHaptic = (pattern = 50) => { if (navigator.vibrate) try { navigator.vibrate(pattern); } catch (e) {} };
+
+        const initDB = () => new Promise((res) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = e => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE_MANGAS)) db.createObjectStore(STORE_MANGAS, {keyPath: "id"});
+                if (!db.objectStoreNames.contains(STORE_PAGES)) db.createObjectStore(STORE_PAGES, {keyPath: "id"});
+            };
+            req.onsuccess = e => res(e.target.result);
+        });
+
+        const blobToBase64Async = (blob) => new Promise((resolve) => {
+            if (!blob) return resolve(null);
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.readAsDataURL(blob);
+        });
+
+        const base64ToBlobAsync = async (base64, type) => {
+            if (!base64) return null;
+            const res = await fetch(`data:${type || 'application/octet-stream'};base64,${base64}`);
+            return await res.blob();
+        };
+
+        const getArrayBuffer = (blob) => {
+            return new Promise((resolve, reject) => {
+                if (blob.arrayBuffer) {
+                    blob.arrayBuffer().then(resolve).catch(reject);
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(blob);
+                }
+            });
+        };
+
+        const serializeFile = async (f) => {
+            if (!f) return null;
+            if (f instanceof Blob || f instanceof File) {
+                try {
+                    const buffer = await getArrayBuffer(f);
+                    return { _isArrayBuffer: true, buffer, type: f.type, name: f.name };
+                } catch(e) {
+                    console.error("Erreur sérialisation", e);
+                    return null;
+                }
+            }
+            return f;
+        };
+
+        const deserializeFile = (f) => {
+            if (!f) return null;
+            if (f._isArrayBuffer && f.buffer) {
+                try {
+                    const blob = new Blob([f.buffer], { type: f.type || 'image/jpeg' });
+                    blob.name = f.name;
+                    return blob;
+                } catch(e) {
+                    console.error("Erreur désérialisation", e);
+                    return null;
+                }
+            }
+            return f; 
+        };
+
+        const createImageUrl = (file) => {
+            if (!file) return null;
+            if (file instanceof Blob || file instanceof File) {
+                if (file.size === 0) return null;
+                let validBlob = file;
+                if (!file.type) {
+                    const ext = (file.name || '').split('.').pop().toLowerCase();
+                    let mimeType = 'image/jpeg';
+                    if (ext === 'png') mimeType = 'image/png';
+                    else if (ext === 'webp') mimeType = 'image/webp';
+                    else if (ext === 'gif') mimeType = 'image/gif';
+                    validBlob = new Blob([file], { type: mimeType });
+                }
+                return URL.createObjectURL(validBlob);
+            }
+            return null;
+        };
+
+        const globalImageCache = new Map();
+
+        const clearImageCache = () => {
+            globalImageCache.forEach(url => URL.revokeObjectURL(url));
+            globalImageCache.clear();
+        };
+
+        const getCachedUrl = (file) => {
+            if (!file) return null;
+            if (globalImageCache.has(file)) return globalImageCache.get(file);
+            const blob = deserializeFile(file);
+            if (!blob) return null;
+            const url = createImageUrl(blob);
+            if (url) globalImageCache.set(file, url);
+            return url;
+        };
+
+        // --- ICONS ---
+        const IconTrash = (props) => <svg {...props} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
+        const IconSettings = (props) => <svg {...props} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
+        const IconSearch = (props) => <svg {...props} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
+        const IconChevronLeft = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="15 18 9 12 15 6"></polyline></svg>;
+        const IconChevronRight = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="9 18 15 12 9 6"></polyline></svg>;
+        const IconUpload = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>;
+        const IconLibrary = (props) => <svg {...props} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></svg>;
+        const IconBookPlus = (props) => <svg {...props} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path><line x1="12" y1="8" x2="12" y2="14"></line><line x1="9" y1="11" x2="15" y2="11"></line></svg>;
+        const IconBookmarkOutline = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2-2z"></path></svg>;
+        const IconBookmarkFilled = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2 2h10a2 2 0 0 1 2 2z"></path></svg>;
+        const IconMoon = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>;
+        const IconSun = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>;
+        const IconSinglePage = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="3" width="12" height="18" rx="2" ry="2"></rect></svg>;
+        const IconDoublePage = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h8v18H2z"></path><path d="M14 3h8v18h-8z"></path></svg>;
+        const IconFloppyUp = (props) => <svg {...props} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M12 17v-7"></path><polyline points="9 13 12 10 15 13"></polyline></svg>;
+        const IconFloppyDown = (props) => <svg {...props} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M12 10v7"></path><polyline points="9 14 12 17 15 14"></polyline></svg>;
+        const IconMoreVertical = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>;
+        const IconPlay = (props) => <svg {...props} width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>;
+        const IconMaximize = (props) => <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>;
+        const IconCheck = (props) => <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>;
+        const IconCheckSquare = (props) => <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>;
+        const IconFilter = (props) => <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>;
+
+        // --- SUB-COMPONENTS ---
+        const ReaderImage = memo(({ file, className = "", style = {}, isBackground = false }) => {
+            const url = getCachedUrl(file);
+            if (!url) return null;
+            if (isBackground) return null;
+            return <img src={url} className={`reader-img gpu-accelerated ${className}`} style={style} />;
+        });
+
+        const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
+            const url = getCachedUrl(file);
+            return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : null;
+        });
+
+        const AnimatedCover = memo(({ file }) => {
+            const [url, setUrl] = useState(null);
+            useEffect(() => { 
+                const u = createImageUrl(deserializeFile(file)); 
+                setUrl(u); 
+                return () => { if (u) URL.revokeObjectURL(u); };
+            }, [file]);
+            return url ? <img src={url} className="w-full h-full object-contain gpu-accelerated" /> : null;
+        });
+
+        const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "next", physicalStyles = null, isLandscape = true, hideAmbilight = false }) => {
+            if (!spread) return null;
+            const isRTL = manga?.direction === 'rtl'; let animLeftClass = ""; let animRightClass = "";
+            
+            if (!physicalStyles && isAnimating) {
+                if (isRTL) { if (slideDir === 'next') animRightClass = 'animate-repli-right'; if (slideDir === 'prev') animLeftClass = 'animate-repli-left'; } 
+                else { if (slideDir === 'next') animLeftClass = 'animate-repli-left'; if (slideDir === 'prev') animRightClass = 'animate-repli-right'; }
+            }
+            
+            if (spread.center) {
+                if (isLandscape) {
+                    return (
+                        <div className="flex w-full h-full perspective-[3000px] transform-style-[preserve-3d]">
+                            {!hideAmbilight && <ReaderImage file={spread.center} isBackground={true} />}
+                            <div className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animLeftClass}`} style={physicalStyles?.left || {}}>
+                                <div className="absolute top-0 left-0 w-[100vw] h-full flex justify-center items-center"><ReaderImage file={spread.center} /></div>
+                            </div>
+                            <div className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animRightClass}`} style={physicalStyles?.right || {}}>
+                                <div className="absolute top-0 right-0 w-[100vw] h-full flex justify-center items-center"><ReaderImage file={spread.center} /></div>
+                            </div>
+                        </div>
+                    );
+                } else {
+                    return (
+                        <>
+                            {!hideAmbilight && <ReaderImage file={spread.center} isBackground={true} />}
+                            <ReaderImage file={spread.center} style={physicalStyles?.single || {}} />
+                        </>
+                    );
+                }
+            }
+            return (
+                <div className="double-layout relative">
+                    <div className="absolute inset-0 flex">
+                        <div className="w-1/2 h-full overflow-hidden relative">{!hideAmbilight && spread.left && <ReaderImage file={spread.left} isBackground={true} />}</div>
+                        <div className="w-1/2 h-full overflow-hidden relative">{!hideAmbilight && spread.right && <ReaderImage file={spread.right} isBackground={true} />}</div>
+                    </div>
+                    <div className={`page-wrapper-left gpu-accelerated ${animLeftClass}`} style={physicalStyles?.left || {}}>
+                        {spread.left ? <ReaderImage file={spread.left} className="img-left" /> : <div className="w-full h-full bg-transparent"></div>}
+                    </div>
+                    <div className={`page-wrapper-right gpu-accelerated ${animRightClass}`} style={physicalStyles?.right || {}}>
+                        {spread.right ? <ReaderImage file={spread.right} className="img-right" /> : <div className="w-full h-full bg-transparent"></div>}
+                    </div>
+                </div>
+            );
+        });
+
+        // --- DICTIONNAIRE DES MATÉRIAUX D'ÉTAGÈRES ---
+        const SHELF_THEMES = {
+            mahogany: {
+                name: "Acajou",
+                bookend: { background: 'linear-gradient(to right, #4a1d15, #2a0f0a)', borderLeftColor: '#7a3122', borderTopColor: '#7a3122' },
+                board: { background: 'linear-gradient(to bottom, #5c2419, #210c08)', borderTopColor: '#8a3c2b' },
+                text: 'text-[#e8b688]',
+                textShadow: '1px 1px 0px rgba(255,255,255,0.15), -1px -1px 0px rgba(0,0,0,0.8)',
+                texture: 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==")] mix-blend-overlay opacity-20'
+            },
+            oak: {
+                name: "Chêne",
+                bookend: { background: 'linear-gradient(to right, #d4a373, #92400e)', borderLeftColor: '#fef08a', borderTopColor: '#fef08a' },
+                board: { background: 'linear-gradient(to bottom, #ca8a04, #713f12)', borderTopColor: '#fde047' },
+                text: 'text-[#422006]',
+                textShadow: '1px 1px 0px rgba(255,255,255,0.4)',
+                texture: 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMwMDAiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==")] mix-blend-overlay opacity-30'
+            },
+            metal: {
+                name: "Métal",
+                bookend: { background: 'linear-gradient(to right, #475569, #1e293b)', borderLeftColor: '#94a3b8', borderTopColor: '#94a3b8' },
+                board: { background: 'linear-gradient(to bottom, #334155, #0f172a)', borderTopColor: '#94a3b8' },
+                text: 'text-[#f8fafc]',
+                textShadow: '0 0 10px rgba(255,255,255,0.4), 1px 1px 2px #000',
+                texture: 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyIiBoZWlnaHQ9IjIiPjxyZWN0IHdpZHRoPSIyIiBoZWlnaHQ9IjIiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==")] opacity-50'
+            },
+            glass: {
+                name: "Verre",
+                bookend: { background: 'linear-gradient(to right, rgba(255,255,255,0.15), rgba(255,255,255,0.02))', borderLeftColor: 'rgba(255,255,255,0.3)', borderTopColor: 'rgba(255,255,255,0.3)', backdropFilter: 'blur(12px)' },
+                board: { background: 'linear-gradient(to bottom, rgba(255,255,255,0.2), rgba(255,255,255,0.05))', borderTopColor: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(16px)' },
+                text: 'text-white',
+                textShadow: '0 0 15px rgba(255,255,255,0.8), 0 2px 4px rgba(0,0,0,0.8)',
+                texture: ''
+            }
+        };
+
+        // --- MODALS & OVERLAYS ---
+        const ToastNotification = memo(({ toast }) => {
+            if (!toast) return null;
+            return (
+                <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[1000] px-8 py-4 rounded-2xl font-bold text-sm tracking-widest uppercase shadow-2xl animate-slide-up border backdrop-blur-xl whitespace-nowrap
+                    ${toast.type === 'success' ? 'bg-emerald-950/90 text-emerald-400 border-emerald-500 shadow-[0_15px_40px_rgba(16,185,129,0.4)]' : 
+                      toast.type === 'error' ? 'bg-red-950/90 text-red-400 border-red-500 shadow-[0_15px_40px_rgba(220,38,38,0.4)]' : 
+                      'bg-theme-950/90 text-theme-300 border-theme-500 shadow-[0_15px_40px_rgba(var(--theme-rgb),0.4)]'}`}
+                >
+                    {toast.msg}
+                </div>
+            );
+        });
+
+        const LoadingOverlay = memo(({ loading, importProgress }) => {
+            if (!loading) return null;
+            return (
+                <div className="fixed inset-0 z-[700] flex flex-col items-center justify-center bg-black/95 animate-fade backdrop-blur-sm">
+                    <div className="relative"><div className="absolute inset-0 bg-theme-500/40 blur-[30px] rounded-full"></div><div className="w-20 h-20 border-4 border-theme-500 border-t-transparent rounded-full animate-spin drop-shadow-[0_0_15px_rgba(var(--theme-rgb),0.8)] relative z-10"></div></div>
+                    <p className="mt-8 text-xs font-black text-theme-300 uppercase tracking-widest" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>{importProgress ? `Traitement... ${importProgress}` : 'Optimisation...'}</p>
+                </div>
+            );
+        });
+
+        const ConfirmModal = memo(({ isOpen, onConfirm, onCancel, title = "Confirmer ?" }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/95 animate-fade backdrop-blur-md">
+                    <div className="bg-slate-900/95 rounded-[32px] p-8 md:p-10 border border-red-600/40 shadow-[0_0_40px_rgba(220,38,38,0.3)] max-w-sm w-full text-center animate-in">
+                        <h3 className="text-xl font-black text-red-400 mb-6 uppercase tracking-widest" style={{ textShadow: '0 0 15px rgba(220,38,38,0.8)' }}>{title}</h3>
+                        <div className="flex gap-4">
+                            <button onClick={onCancel} className="flex-1 py-4 sm:py-5 bg-black text-theme-400 border border-theme-600/40 font-black text-xs rounded-2xl uppercase transition hover:bg-theme-950/30">NON</button>
+                            <button onClick={onConfirm} className="flex-1 py-4 sm:py-5 bg-red-950/40 text-red-400 border border-red-600/50 font-black text-xs rounded-2xl uppercase transition shadow-[0_0_15px_rgba(220,38,38,0.4)] hover:shadow-[0_0_25px_rgba(220,38,38,0.7)] hover:bg-red-900/50">OUI</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        });
+
+        const BatchEditModal = memo(({ isOpen, count, onClose, onSubmit }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 animate-fade backdrop-blur-md">
+                    <div className="bg-slate-900/95 w-full max-w-lg rounded-[32px] p-8 border border-theme-600/40 shadow-[0_0_40px_rgba(var(--theme-rgb),0.3)] relative animate-in">
+                        <h2 className="text-xl font-black mb-2 text-center uppercase text-theme-400" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8)' }}>Action en lot</h2>
+                        <p className="text-center text-xs text-theme-300/70 mb-8 font-bold uppercase tracking-widest">{count} mangas sélectionnés</p>
+                        <form onSubmit={onSubmit} className="space-y-5">
+                            <div className="bg-black/50 p-4 rounded-2xl border border-theme-800/50">
+                                <label className="block text-[10px] text-theme-400 font-black uppercase tracking-widest mb-2">Définir la Série / Pile</label>
+                                <input name="group" placeholder="Taper 'CLEAR' pour retirer de la pile" className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-3 text-theme-300 font-bold text-sm outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all" />
+                            </div>
+                            <div className="bg-black/50 p-4 rounded-2xl border border-theme-800/50">
+                                <label className="block text-[10px] text-theme-400 font-black uppercase tracking-widest mb-2">Ajouter des Tags</label>
+                                <input name="tags" placeholder="Ex: Shonen, Terminé... (Laisser vide pour ignorer)" className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-3 text-theme-300 font-bold text-sm outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all" />
+                            </div>
+                            <div className="flex gap-4 pt-4">
+                                <button type="button" onClick={onClose} className="flex-1 py-4 sm:py-5 bg-black text-theme-400 border border-theme-600/40 font-black text-xs rounded-2xl uppercase transition hover:bg-theme-950/30">Annuler</button>
+                                <button type="submit" className="flex-1 py-4 sm:py-5 bg-theme-600/20 text-theme-300 border border-theme-500 font-black text-xs rounded-2xl uppercase transition shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)]">Appliquer</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        });
+
+        const MangaActionsModal = memo(({ activeCardMenu, onClose, onEdit, onExport, onDelete }) => {
+            if (!activeCardMenu) return null;
+            return (
+                <div className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 transition-all animate-fade backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-slate-900 w-full sm:max-w-md rounded-t-[32px] sm:rounded-[32px] p-8 border border-theme-600/40 shadow-[0_-10px_40px_rgba(var(--theme-rgb),0.3)] animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <div className="w-16 h-1.5 bg-theme-600/50 rounded-full mx-auto mb-8 sm:hidden"></div>
+                        <h3 className="text-center font-black text-white text-xl mb-2 truncate px-4">{activeCardMenu.title}</h3>
+                        <div className="text-center text-[10px] sm:text-xs text-theme-400 uppercase tracking-widest mb-8 border-b border-theme-600/30 pb-4">Actions du Manga</div>
+
+                        <div className="flex flex-col gap-4">
+                            <button onClick={() => onEdit(activeCardMenu)} className="w-full py-4 sm:py-5 bg-black text-white rounded-2xl flex items-center justify-center gap-3 border border-theme-600/40 hover:bg-theme-900/50 hover:border-theme-400 hover:shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] transition-all font-bold text-sm sm:text-base">
+                                <IconSettings width="20" height="20" className="text-theme-400" /> Modifier les informations
+                            </button>
+                            <div className="flex gap-4">
+                                <button onClick={(e) => onExport(activeCardMenu, 'zip', e)} className="flex-1 py-4 sm:py-5 bg-emerald-950/40 text-emerald-100 rounded-2xl flex items-center justify-center gap-2 border border-emerald-600/50 hover:bg-emerald-900/60 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all font-bold text-sm sm:text-base">
+                                    <IconFloppyDown width="18" height="18" /> Exporter ZIP
+                                </button>
+                                <button onClick={(e) => onExport(activeCardMenu, 'cbz', e)} className="flex-1 py-4 sm:py-5 bg-theme-950/40 text-theme-100 rounded-2xl flex items-center justify-center gap-2 border border-theme-600/50 hover:bg-theme-900/60 hover:shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] transition-all font-bold text-sm sm:text-base">
+                                    <IconFloppyDown width="18" height="18" /> Exporter CBZ
+                                </button>
+                            </div>
+                            <button onClick={() => onDelete(activeCardMenu.id)} className="w-full py-4 sm:py-5 mt-2 bg-red-950/40 text-red-500 rounded-2xl flex items-center justify-center gap-3 border border-red-900/50 hover:bg-red-900/60 hover:text-white hover:shadow-[0_0_15px_rgba(220,38,38,0.3)] transition-all font-bold text-sm sm:text-base">
+                                <IconTrash width="20" height="20" /> Supprimer ce manga
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        });
+
+        const GroupInput = memo(({ existingGroups = [], value, onChange, name, inputClass = "rounded-xl px-4 py-4 text-sm" }) => {
+            const hasExisting = existingGroups.length > 0;
+            const [mode, setMode] = useState(hasExisting && (!value || existingGroups.includes(value)) ? 'select' : 'input');
+            const [internalVal, setInternalVal] = useState(value || "");
+
+            const actualValue = onChange !== undefined ? value : internalVal;
+            const handleChange = (val) => {
+                if (onChange !== undefined) onChange(val);
+                else setInternalVal(val);
+            };
+
+            const baseClass = `w-full bg-black border border-theme-600/40 text-theme-300 font-bold text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] ${inputClass}`;
+
+            if (mode === 'select' && hasExisting) {
+                return (
+                    <select name={name} value={actualValue} onChange={e => { if (e.target.value === '__NEW__') { setMode('input'); handleChange(""); } else { handleChange(e.target.value); } }} className={`${baseClass} appearance-none cursor-pointer`}>
+                        <option value="">-- Sans Série (Indépendant) --</option>
+                        {existingGroups.map(g => <option key={g} value={g}>{g}</option>)}
+                        <option value="__NEW__">+ Créer une nouvelle Série / Pile...</option>
+                    </select>
+                );
+            }
+
+            return (
+                <div className="flex gap-2 w-full">
+                    <input name={name} value={actualValue} onChange={e => handleChange(e.target.value)} placeholder="Série / Pile (Optionnel)" className={`flex-1 ${baseClass}`} />
+                    {hasExisting && (<button type="button" onClick={() => { setMode('select'); handleChange(""); }} className="bg-theme-900/40 border border-theme-600/40 text-theme-300 px-4 rounded-xl font-black text-xs hover:bg-theme-800 transition-all shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)]">LISTE</button>)}
+                </div>
+            );
+        });
+
+        const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingGroups = [] }) => {
+            if (!editingManga) return null;
+            return (
+                <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 animate-fade backdrop-blur-md">
+                    <div className="bg-slate-900/95 w-full max-w-lg rounded-[32px] p-8 border border-theme-600/40 shadow-[0_0_40px_rgba(var(--theme-rgb),0.3)] relative animate-in">
+                        <h2 className="text-xl font-black mb-8 text-center uppercase text-theme-400" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8)' }}>Modifier</h2>
+                        <form onSubmit={onSubmit} className="space-y-5">
+                            <input name="title" defaultValue={editingManga.title} required className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-base text-center outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] transition-all" />
+                            <GroupInput existingGroups={existingGroups} value={editingManga.group || ""} name="group" inputClass="rounded-2xl px-5 py-4 text-base" />
+                            <input name="tags" defaultValue={(editingManga.tags || []).join(', ')} placeholder="Tags (Ex: Shonen, Action...)" className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-base text-center outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] transition-all" />
+                            <div className="flex gap-4 pt-4">
+                                <button type="button" onClick={onClose} className="flex-1 py-4 sm:py-5 bg-black text-theme-400 border border-theme-600/40 font-black text-xs rounded-2xl uppercase transition hover:bg-theme-950/30">Annuler</button>
+                                <button type="submit" className="flex-1 py-4 sm:py-5 bg-theme-600/20 text-theme-300 border border-theme-500 font-black text-xs rounded-2xl uppercase transition shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)]">Valider</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        });
+
+        // --- COMPOSANT INSPECTION 3D (TOMB RAIDER STYLE) ---
+        const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMenu, onPrev, onNext, hasPrev, hasNext }) => {
+            if (!manga) return null;
+
+            const [scale, setScale] = useState(1);
+            useEffect(() => {
+                const updateScale = () => {
+                    // On calcule l'échelle pour que l'objet 3D tienne sur les petits écrans et s'agrandisse sur grand écran
+                    const availableWidth = window.innerWidth - 40;
+                    const availableHeight = window.innerHeight - 250;
+                    const requiredWidth = MANGA_PROPS.faceW * 2;
+                    const requiredHeight = MANGA_PROPS.h;
+                    // Échelle jusqu'à x3.5 pour ton écran Ultra Wide
+                    const newScale = Math.min(3.5, availableWidth / requiredWidth, availableHeight / requiredHeight);
+                    setScale(newScale);
+                };
+                updateScale();
+                window.addEventListener('resize', updateScale);
+                return () => window.removeEventListener('resize', updateScale);
+            }, []);
+
+            const isDouble = !!manga.coverDouble;
+            const isRTL = manga.direction === 'rtl';
+            const mainCover = manga.coverDouble || manga.coverStart || manga.cover;
+            const coverUrl = getCachedUrl(mainCover);
+
+            // GÉOMÉTRIE PARFAITE DU LIVRE 3D (Synchronisée avec l'étagère)
+            const bw = MANGA_PROPS.faceW;
+            const bh = MANGA_PROPS.h;
+            const bd = MANGA_PROPS.spineW;
+
+            // Découpage millimétré de l'image pour le "Wraparound" parfait
+            const wrapTotalW = (bw * 2) + bd;
+            const bgSizeFrontBack = `${(wrapTotalW / bw) * 100}% 100%`;
+            const bgSizeSpine = `${(wrapTotalW / bd) * 100}% 100%`;
+            
+            // LOGIQUE DE DECOUPAGE CORRIGÉE :
+            // Pour un manga (RTL lu de droite à gauche), la jaquette à plat est : [Avant (Gauche) | Tranche (Centre) | Arrière (Droite)]
+            const bgPosFront = isRTL ? '0% 50%' : '100% 50%';
+            const bgPosBack = isRTL ? '100% 50%' : '0% 50%';
+            const bgPosSpine = '50% 50%';
+
+            const spineIsRight = isRTL;
+
+            // --- LOGIQUE INTERACTION 3D ---
+            const [rotY, setRotY] = useState(isRTL ? -15 : 15);
+            const [rotX, setRotX] = useState(0);
+            const [isDragging, setIsDragging] = useState(false);
+            const [autoSpin, setAutoSpin] = useState(true);
+            const dragInfo = useRef({ startX: 0, startY: 0, initRotY: 0, initRotX: 0, hasDragged: false });
+
+            useEffect(() => {
+                if (!autoSpin) return;
+                let animationFrameId;
+                let lastTime = performance.now();
+                // Tourne de 360° en 16 secondes (comme l'ancienne animation CSS)
+                const speedPerMs = (360 / 16000) * (isRTL ? -1 : 1); 
+                
+                const animate = (time) => {
+                    const delta = time - lastTime;
+                    lastTime = time;
+                    setRotY(prev => prev + (delta * speedPerMs));
+                    animationFrameId = requestAnimationFrame(animate);
+                };
+                animationFrameId = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(animationFrameId);
+            }, [autoSpin, isRTL]);
+
+            const onPointerDown = (e) => {
+                setAutoSpin(false); // Stoppe l'animation automatique définitivement
+                setIsDragging(true);
+                dragInfo.current = { startX: e.clientX, startY: e.clientY, initRotY: rotY, initRotX: rotX, hasDragged: false };
+                e.currentTarget.setPointerCapture(e.pointerId);
+            };
+
+            const onPointerMove = (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - dragInfo.current.startX;
+                const deltaY = e.clientY - dragInfo.current.startY;
+                
+                // Différencier un simple clic d'un vrai glissement (pour la lecture)
+                if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) dragInfo.current.hasDragged = true;
+                
+                setRotY(dragInfo.current.initRotY + deltaX * 0.6);
+                setRotX(Math.max(-60, Math.min(60, dragInfo.current.initRotX - deltaY * 0.6))); // Limite la rotation haut/bas
+            };
+
+            const onPointerUp = (e) => {
+                setIsDragging(false);
+                if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+            };
+
+            const handleReadClick = (e) => {
+                e.stopPropagation();
+                // Si l'utilisateur a fait glisser le livre, on n'ouvre pas le manga
+                if (dragInfo.current.hasDragged) {
+                    dragInfo.current.hasDragged = false;
+                    return;
+                }
+                const fakeEvent = { currentTarget: document.getElementById('inspect-book-container') };
+                onRead(manga, fakeEvent);
+            };
+
+            // --- ANIMATION STYLE TOMB RAIDER (SLIDE 3D) ---
+            const [trState, setTrState] = useState('idle');
+
+            React.useLayoutEffect(() => {
+                if (trState === 'leaving-next') {
+                    setTrState('entering-next');
+                    let frame2;
+                    const frame1 = requestAnimationFrame(() => { frame2 = requestAnimationFrame(() => setTrState('idle')); });
+                    return () => { cancelAnimationFrame(frame1); cancelAnimationFrame(frame2); };
+                } else if (trState === 'leaving-prev') {
+                    setTrState('entering-prev');
+                    let frame2;
+                    const frame1 = requestAnimationFrame(() => { frame2 = requestAnimationFrame(() => setTrState('idle')); });
+                    return () => { cancelAnimationFrame(frame1); cancelAnimationFrame(frame2); };
+                }
+            }, [manga.id]);
+
+            const handlePrev = useCallback((e) => {
+                e.stopPropagation();
+                if (!hasPrev || trState !== 'idle') return;
+                setTrState('leaving-prev');
+                setTimeout(() => onPrev(), 300); // Laisse le temps à l'animation de sortie de se terminer
+            }, [hasPrev, onPrev, trState]);
+
+            const handleNext = useCallback((e) => {
+                e.stopPropagation();
+                if (!hasNext || trState !== 'idle') return;
+                setTrState('leaving-next');
+                setTimeout(() => onNext(), 300);
+            }, [hasNext, onNext, trState]);
+
+            let trStyle = { transition: 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease', transform: 'translateX(0) translateZ(0) scale(1) rotateY(0deg)', opacity: 1 };
+            if (trState === 'leaving-next') {
+                trStyle = { transition: 'transform 0.3s cubic-bezier(0.5, 0, 0.75, 0), opacity 0.3s ease', transform: 'translateX(-40vw) translateZ(-600px) scale(0.6) rotateY(60deg)', opacity: 0 };
+            } else if (trState === 'entering-next') {
+                trStyle = { transition: 'none', transform: 'translateX(40vw) translateZ(-600px) scale(0.6) rotateY(-60deg)', opacity: 0 };
+            } else if (trState === 'leaving-prev') {
+                trStyle = { transition: 'transform 0.3s cubic-bezier(0.5, 0, 0.75, 0), opacity 0.3s ease', transform: 'translateX(40vw) translateZ(-600px) scale(0.6) rotateY(-60deg)', opacity: 0 };
+            } else if (trState === 'entering-prev') {
+                trStyle = { transition: 'none', transform: 'translateX(-40vw) translateZ(-600px) scale(0.6) rotateY(60deg)', opacity: 0 };
+            }
+
+            return (
+                <div className={`fixed inset-0 z-[1500] flex items-center justify-center bg-black/80 backdrop-blur-xl transition-opacity duration-500 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'}`} onClick={onClose}>
+                    
+                    {/* Flèches de navigation inter-pile avec les nouvelles fonctions */}
+                    {hasPrev && (
+                        <button onClick={handlePrev} className="absolute left-4 sm:left-8 md:left-12 xl:left-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95">
+                            <IconChevronLeft width="32" height="32" />
+                        </button>
+                    )}
+                    {hasNext && (
+                        <button onClick={handleNext} className="absolute right-4 sm:right-8 md:right-12 xl:right-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95">
+                            <IconChevronRight width="32" height="32" />
+                        </button>
+                    )}
+
+                    <div className="relative flex flex-col items-center gap-12 sm:gap-16 w-full max-w-2xl px-4" onClick={e => e.stopPropagation()}>
+                        
+                        {/* Wrapper Perspective */}
+                        <div style={{ perspective: '2000px' }} className="flex justify-center items-center mt-10">
+                            
+                            {/* TOMB RAIDER ANIMATION WRAPPER */}
+                            <div style={{ ...trStyle, transformStyle: 'preserve-3d' }}>
+                                
+                                {/* 3D Artifact Float Wrapper - Ajout du Touch-None pour bloquer le scroll et des events Pointers */}
+                                <div id="inspect-book-container" className="relative cursor-grab active:cursor-grabbing group touch-none" 
+                                    style={{ width: `${bw}px`, height: `${bh}px`, animation: 'artifactFloat 6s ease-in-out infinite', transformStyle: 'preserve-3d', transform: `scale(${scale})` }} 
+                                    onClick={handleReadClick}
+                                    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+                                    
+                                    {/* 3D Spin Wrapper (L'animation CSS est remplacée par la rotation en State React) */}
+                                    <div className="w-full h-full relative" style={{ transformStyle: 'preserve-3d', transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)` }}>
+                                        
+                                        {/* Face Avant (Couverture Début) */}
+                                        <div className="absolute inset-0" style={{ transform: `translateZ(${bd/2}px)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+                                            {isDouble ? (
+                                                <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosFront }}></div>
+                                            ) : (
+                                                <div className="w-full h-full bg-black"><StackThumbnail file={manga.coverStart || manga.cover} /></div>
+                                            )}
+                                        </div>
+
+                                        {/* Face Arrière (Couverture Fin) */}
+                                        <div className="absolute inset-0" style={{ transform: `translateZ(${-bd/2}px) rotateY(180deg)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+                                            {isDouble ? (
+                                                <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosBack }}></div>
+                                            ) : (
+                                                <div className="w-full h-full bg-black"><StackThumbnail file={manga.coverEnd || manga.coverStart || manga.cover} /></div>
+                                            )}
+                                        </div>
+
+                                        {/* Tranche Principale (Spine) */}
+                                        <div className="absolute inset-y-0 bg-[#0f172a]" style={{ width: `${bd}px`, left: spineIsRight ? 'auto' : 0, right: spineIsRight ? 0 : 'auto', transform: `translateX(${spineIsRight ? bd/2 : -bd/2}px) rotateY(${spineIsRight ? 90 : -90}deg)` }}>
+                                            {isDouble ? (
+                                                <div className="w-full h-full" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: bgPosSpine }}></div>
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center border-l border-white/20 border-r border-black/80">
+                                                    <span className="text-white font-black text-[12px] uppercase tracking-widest whitespace-nowrap" style={{ transform: 'rotate(90deg)' }}>{manga.title}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Tranche Pages (Opposée) */}
+                                        <div className="absolute inset-y-0 bg-[#e8e4db]" style={{ width: `${bd}px`, left: spineIsRight ? 0 : 'auto', right: spineIsRight ? 'auto' : 0, transform: `translateX(${spineIsRight ? -bd/2 : bd/2}px) rotateY(${spineIsRight ? -90 : 90}deg)` }}>
+                                            <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
+                                        </div>
+
+                                        {/* Tranche Haut (Pages) */}
+                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, top: 0, transform: `translateY(${-bd/2}px) rotateX(90deg)` }}>
+                                            <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
+                                        </div>
+
+                                        {/* Tranche Bas (Pages) */}
+                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, bottom: 0, transform: `translateY(${bd/2}px) rotateX(-90deg)` }}>
+                                            <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Méta-données & Boutons d'action (avec transition fondue) */}
+                        <div className="flex flex-col items-center gap-6 animate-slide-up w-full z-30 mt-8" style={{ opacity: trState === 'idle' ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+                            <div className="text-center px-4">
+                                <span className="text-theme-400 font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2 block drop-shadow-md">
+                                    {manga.group || "Volume Indépendant"}
+                                </span>
+                                <h2 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tighter drop-shadow-[0_0_20px_rgba(var(--theme-rgb),0.8)] line-clamp-2">
+                                    {manga.title}
+                                </h2>
+                                {manga.bookmark != null && (
+                                    <span className="inline-block mt-4 bg-theme-600/30 border border-theme-500 text-theme-100 text-xs font-black px-4 py-1.5 rounded-full shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)]">
+                                        Reprendre page {manga.bookmark + 1}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-3 w-full max-w-md mt-2 px-4">
+                                <button onClick={onClose} className="flex-1 py-4 rounded-2xl bg-white/5 text-white/70 font-black uppercase tracking-widest text-[10px] sm:text-xs hover:bg-white/10 hover:text-white transition-colors border border-white/10 active:scale-95">
+                                    Remettre
+                                </button>
+                                <button onClick={handleReadClick} className="flex-[2] py-4 rounded-2xl bg-theme-600 text-white font-black uppercase tracking-widest text-xs sm:text-sm hover:bg-theme-500 transition-all shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),1)] hover:scale-105 active:scale-95 flex items-center justify-center gap-2 border border-theme-400">
+                                    <IconPlay width="20" height="20" /> {manga.bookmark != null ? 'Continuer' : 'Ouvrir'}
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); onOpenMenu(manga); }} className="w-12 sm:w-[54px] h-[46px] sm:h-[52px] rounded-2xl bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-white/10 active:scale-95 flex items-center justify-center flex-none" title="Options du manga">
+                                    <IconSettings width="20" height="20" />
+                                </button>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+            );
+        });
+
+        const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImportProgress, showToast, existingGroups = [] }) => {
+            const [formTitle, setFormTitle] = useState("");
+            const [formGroup, setFormGroup] = useState("");
+            const [formMangaDir, setFormMangaDir] = useState('rtl');
+            const [formTags, setFormTags] = useState("");
+            
+            const [coverStartFile, setCoverStartFile] = useState(null);
+            const [coverStartPreview, setCoverStartPreview] = useState(null);
+            const [coverEndFile, setCoverEndFile] = useState(null);
+            const [coverEndPreview, setCoverEndPreview] = useState(null);
+            const [coverDoubleFile, setCoverDoubleFile] = useState(null);
+            const [coverDoublePreview, setCoverDoublePreview] = useState(null);
+
+            const [orderedPages, setOrderedPages] = useState([]);
+            const [rawPages, setRawPages] = useState([]);
+            const [isManualSorting, setIsManualSorting] = useState(false);
+            const [sortMethod, setSortMethod] = useState('name-asc');
+
+            useEffect(() => {
+                return () => {
+                    if (coverStartPreview) URL.revokeObjectURL(coverStartPreview);
+                    if (coverEndPreview) URL.revokeObjectURL(coverEndPreview);
+                    if (coverDoublePreview) URL.revokeObjectURL(coverDoublePreview);
+                };
+            }, [coverStartPreview, coverEndPreview, coverDoublePreview]);
+
+            useEffect(() => {
+                if (!rawPages.length || sortMethod === 'custom') return;
+                let files = [...rawPages];
+                if (sortMethod === 'name-asc') files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+                else if (sortMethod === 'date-asc') files.sort((a, b) => a.lastModified - b.lastModified);
+                else if (sortMethod === 'date-desc') files.sort((a, b) => b.lastModified - a.lastModified);
+                setOrderedPages(files);
+            }, [rawPages, sortMethod]);
+
+            const handlePagesSelection = (e) => { if (e.target.files && e.target.files.length > 0) { setRawPages(Array.from(e.target.files)); setSortMethod('name-asc'); setIsManualSorting(false); } };
+
+            const handleZipImport = async (e) => {
+                const file = e.target.files[0]; if (!file) return;
+                setCoverStartFile(null); setCoverStartPreview(null); setCoverEndFile(null); setCoverEndPreview(null); setCoverDoubleFile(null); setCoverDoublePreview(null);
+                setLoading(true); setImportProgress("Lecture archive...");
+                try {
+                    const zip = new JSZip(); await zip.loadAsync(file);
+                    let metadata = null; if (zip.file("metadata.json")) { try { metadata = JSON.parse(await zip.file("metadata.json").async("string")); } catch(e) {} }
+                    const filesMap = {}; const imagePromises = [];
+                    zip.forEach((relativePath, zipEntry) => {
+                        if (!zipEntry.dir && !relativePath.includes('__MACOSX') && !relativePath.endsWith('metadata.json')) {
+                            const p = zipEntry.async('arraybuffer').then(buffer => {
+                                const nameParts = relativePath.split('/');
+                                const fileName = nameParts[nameParts.length - 1];
+                                const ext = fileName.split('.').pop().toLowerCase();
+                                let mimeType = 'image/jpeg';
+                                if (ext === 'png') mimeType = 'image/png';
+                                else if (ext === 'webp') mimeType = 'image/webp';
+                                else if (ext === 'gif') mimeType = 'image/gif';
+                                
+                                const blob = new Blob([buffer], { type: mimeType });
+                                blob.name = fileName;
+                                filesMap[relativePath] = blob; return blob;
+                            });
+                            imagePromises.push(p);
+                        }
+                    });
+                    await Promise.all(imagePromises);
+                    if (metadata) {
+                        setImportProgress("Restauration..."); 
+                        setFormTitle(metadata.title || ""); 
+                        setFormMangaDir(metadata.direction || "rtl"); 
+                        if (metadata.group) setFormGroup(metadata.group);
+                        const importedTags = new Set((metadata.tags || []).map(t => t.toUpperCase())); 
+                        setFormTags(Array.from(importedTags).join(', '));
+                        
+                        if (metadata.coverStart && filesMap[metadata.coverStart]) { setCoverStartFile(filesMap[metadata.coverStart]); setCoverStartPreview(URL.createObjectURL(filesMap[metadata.coverStart])); }
+                        if (metadata.coverEnd && filesMap[metadata.coverEnd]) { setCoverEndFile(filesMap[metadata.coverEnd]); setCoverEndPreview(URL.createObjectURL(filesMap[metadata.coverEnd])); }
+                        if (metadata.coverDouble && filesMap[metadata.coverDouble]) { setCoverDoubleFile(filesMap[metadata.coverDouble]); setCoverDoublePreview(URL.createObjectURL(filesMap[metadata.coverDouble])); }
+                        const pages = (metadata.pages || []).map(p => filesMap[p]).filter(Boolean);
+                        setOrderedPages(pages); setRawPages(pages);
+                    } else {
+                        const images = Object.values(filesMap).filter(f => f.name.match(/\.(jpg|jpeg|png|webp|gif)$/i)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+                        if (images.length === 0) throw new Error("Archive vide");
+                        setFormTitle(file.name.replace(/\.(zip|cbz)$/i, '')); setOrderedPages(images); setRawPages(images);
+                        setCoverStartFile(images[0]); setCoverStartPreview(URL.createObjectURL(images[0]));
+                    }
+                    setLoading(false); setImportProgress(null);
+                } catch (error) { console.error("Erreur zip:", error); showToast("Erreur de lecture de l'archive.", "error"); setLoading(false); setImportProgress(null); }
+                e.target.value = ''; 
+            };
+
+            const handleAdd = async (e) => {
+                e.preventDefault();
+                if (!orderedPages.length || (!coverStartFile && !coverDoubleFile)) { showToast("Couverture et pages requises !", "error"); return; }
+                setLoading(true); setImportProgress("Préparation des fichiers...");
+                try {
+                    const mangaId = "m_"+Date.now();
+                    const newTags = formTags.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+                    const finalGroup = formGroup.trim() || null;
+                    
+                    const sCoverDouble = await serializeFile(coverDoubleFile);
+                    const sCoverStart = await serializeFile(coverStartFile);
+                    const sCoverEnd = await serializeFile(coverEndFile);
+                    const fallbackCover = coverStartFile || coverDoubleFile;
+                    const sCover = await serializeFile(fallbackCover);
+                    
+                    const sOrderedPages = [];
+                    for(let i=0; i<orderedPages.length; i++){
+                        setImportProgress(`Optimisation page ${i+1}/${orderedPages.length}`);
+                        sOrderedPages.push(await serializeFile(orderedPages[i]));
+                    }
+                    
+                    const db = await initDB();
+                    const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
+                    
+                    tx.objectStore(STORE_MANGAS).add({
+                        id: mangaId, title: formTitle || "Sans titre", group: finalGroup, direction: formMangaDir, tags: newTags, 
+                        coverDouble: sCoverDouble, coverStart: sCoverStart, coverEnd: sCoverEnd, cover: sCover,
+                        totalPages: orderedPages.length, progress: 0, date: Date.now()
+                    });
+                    
+                    tx.objectStore(STORE_PAGES).add({ id: mangaId, pages: sOrderedPages });
+                    
+                    tx.oncomplete = () => { setLoading(false); setImportProgress(null); triggerHaptic(100); onSuccess(); };
+                } catch (error) { console.error(error); setLoading(false); setImportProgress(null); showToast("Erreur lors de l'importation.", "error"); }
+            };
+
+            const DragAndDropSort = () => {
+                const handleDragStart = (e, index) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', index); };
+                const handleDragOver = (e, index) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+                const handleDrop = (e, index) => {
+                    e.preventDefault(); e.stopPropagation();
+                    const draggedIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    if (!isNaN(draggedIdx) && draggedIdx !== index) {
+                        const newPages = [...orderedPages];
+                        const item = newPages.splice(draggedIdx, 1)[0];
+                        newPages.splice(index, 0, item);
+                        setOrderedPages(newPages);
+                        setSortMethod('custom');
+                    }
+                };
+                if (!isManualSorting) return null;
+                return (
+                    <div className="fixed inset-0 z-[400] bg-black/95 p-4 sm:p-8 lg:p-12 flex flex-col animate-fade backdrop-blur-md">
+                        <div className="flex justify-between items-center mb-8 border-b border-theme-600/30 pb-6 flex-none animate-in w-full mx-auto md:px-8">
+                            <div><h3 className="text-lg sm:text-2xl font-black uppercase text-theme-400 tracking-widest" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>Ordre manuel</h3><p className="text-xs text-theme-300/60 uppercase mt-2 font-bold">Maintenez appuyé pour glisser-déposer</p></div>
+                            <button type="button" onClick={() => setIsManualSorting(false)} className="bg-theme-600 text-white border border-theme-400 px-6 py-3 sm:px-8 sm:py-4 rounded-2xl text-xs font-black uppercase transition-all shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] hover:scale-105 active:scale-95">TERMINER</button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-20 animate-in w-full mx-auto md:px-8">
+                            <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 sm:gap-6 lg:gap-8">
+                                {orderedPages.map((f, i) => (
+                                    <div key={f.name + i} draggable onDragStart={(e) => handleDragStart(e, i)} onDragOver={(e) => handleDragOver(e, i)} onDrop={(e) => handleDrop(e, i)}
+                                        className="relative aspect-[3/4.5] bg-black rounded-xl sm:rounded-2xl overflow-hidden border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.5)] hover:border-theme-400 transition-all cursor-move group select-none gpu-accelerated"
+                                    >
+                                        <StackThumbnail file={f} />
+                                        <div className="absolute top-1.5 left-1.5 bg-black/80 backdrop-blur-md text-theme-400 font-black text-[10px] sm:text-xs min-w-[24px] h-[24px] flex items-center justify-center rounded-lg border border-theme-500/50 shadow-[0_0_10px_rgba(var(--theme-rgb),0.4)]">{i + 1}</div>
+                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent p-3 pt-8 pointer-events-none"><p className="text-[9px] sm:text-[10px] text-theme-100 font-bold truncate text-center drop-shadow-[0_0_5px_rgba(0,0,0,1)] opacity-70 group-hover:opacity-100">{f.name}</p></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <>
+                    <div className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4 animate-fade backdrop-blur-md">
+                        <form onSubmit={handleAdd} className="bg-slate-900/95 w-full max-w-2xl rounded-[32px] p-6 sm:p-8 border border-theme-600/40 shadow-[0_0_50px_rgba(var(--theme-rgb),0.3)] flex flex-col max-h-[90vh] relative overflow-hidden animate-in">
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-theme-600/20 blur-[60px] rounded-full pointer-events-none"></div>
+                            <h2 className="text-theme-400 font-black mb-6 uppercase text-center tracking-widest text-base sm:text-lg flex-none relative z-10" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>Nouveau Chapitre</h2>
+                            
+                            <div className="overflow-y-auto flex-1 pr-2 pb-2 relative z-10 custom-scrollbar">
+                                <div className="mb-6 bg-black border border-theme-500/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-[inset_0_0_20px_rgba(var(--theme-rgb),0.1)]">
+                                    <span className="text-theme-400 font-black text-xs uppercase tracking-widest mb-3" style={{ textShadow: '0 0 8px rgba(var(--theme-rgb),0.5)' }}>Import Rapide ZIP/CBZ</span>
+                                    <label className="bg-theme-600/20 text-theme-300 border border-theme-500 px-6 py-3 rounded-xl text-xs font-black uppercase cursor-pointer active:scale-95 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] hover:bg-theme-600/40"><IconUpload className="w-5 h-5" /> SÉLECTIONNER UNE ARCHIVE<input type="file" accept=".zip,.cbz" className="hidden" onChange={handleZipImport} /></label>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 gap-4 mb-4">
+                                    <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Titre du chapitre" required className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] placeholder-theme-800 transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]" />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <GroupInput existingGroups={existingGroups} value={formGroup} onChange={setFormGroup} name="group" inputClass="rounded-xl px-4 py-4 text-sm" />
+                                        <input value={formTags} onChange={e => setFormTags(e.target.value)} placeholder="Tags (Action, Terminé...)" className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] placeholder-theme-800 transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]" />
+                                    </div>
+                                </div>
+                                
+                                <div className="mb-6">
+                                    <select value={formMangaDir} onChange={e => setFormMangaDir(e.target.value)} className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-xs text-theme-300 font-black uppercase tracking-widest outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all appearance-none text-center [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]">
+                                        <option value="rtl">Lecture Manga (Droite à Gauche)</option>
+                                        <option value="ltr">Lecture BD (Gauche à Droite)</option>
+                                    </select>
+                                </div>
+
+                                {/* Nouvelle zone : Jaquette Complète (Wraparound) */}
+                                <div className="mb-4">
+                                    {coverDoublePreview ? (
+                                        <label className="relative rounded-2xl border border-theme-500 cursor-pointer active:scale-95 transition-all h-32 overflow-hidden shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] block group bg-black">                                            
+                                            <img src={coverDoublePreview} className="absolute inset-0 w-full h-full object-contain drop-shadow-2xl relative z-10" />
+                                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-8 pb-3 px-4 flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity z-20"><span className="text-[10px] text-white font-black uppercase drop-shadow-[0_0_5px_rgba(0,0,0,1)]">Jaquette Complète</span><span className="bg-theme-600/80 border border-theme-400 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">MODIFIER</span></div>
+                                            <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files && e.target.files[0]) { setCoverDoubleFile(e.target.files[0]); if (coverDoublePreview) URL.revokeObjectURL(coverDoublePreview); setCoverDoublePreview(URL.createObjectURL(e.target.files[0])); } }} />
+                                        </label>
+                                    ) : (
+                                        <label className="relative bg-black hover:bg-theme-950/30 rounded-2xl border border-theme-600/40 p-4 text-center cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center h-24 shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.1)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.3)] hover:border-theme-400 group">
+                                            <span className="text-xs text-theme-200 uppercase font-black mb-1 group-hover:text-theme-100 transition-colors">Jaquette Complète (Wraparound)</span><span className="text-theme-700 text-[9px] font-bold uppercase mb-2">Optionnel - Pour l'effet 3D Parfait</span><span className="text-theme-400 font-black text-[10px] bg-theme-900/40 border border-theme-500/30 px-3 py-1.5 rounded-lg group-hover:bg-theme-600/30 group-hover:border-theme-400 transition-all">+ AJOUTER</span>
+                                            <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files && e.target.files[0]) { setCoverDoubleFile(e.target.files[0]); if (coverDoublePreview) URL.revokeObjectURL(coverDoublePreview); setCoverDoublePreview(URL.createObjectURL(e.target.files[0])); } }} />
+                                        </label>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center justify-center gap-4 mb-4 opacity-50">
+                                    <div className="h-px flex-1 bg-theme-600/50"></div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-theme-400">OU (Couvertures Simples)</span>
+                                    <div className="h-px flex-1 bg-theme-600/50"></div>
+                                </div>
+                                
+                                {/* Zones classiques Début / Fin */}
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    {coverStartPreview ? (
+                                        <label className="relative rounded-2xl border border-theme-500 cursor-pointer active:scale-95 transition-all h-40 overflow-hidden shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] block group bg-black">
+                                            <img src={coverStartPreview} className="absolute inset-0 w-full h-full object-contain drop-shadow-2xl relative z-10" />
+                                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-8 pb-3 px-4 flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity z-20"><span className="text-[10px] text-white font-black uppercase drop-shadow-[0_0_5px_rgba(0,0,0,1)]">Début</span><span className="bg-theme-600/80 border border-theme-400 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">MODIFIER</span></div>
+                                            <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files && e.target.files[0]) { setCoverStartFile(e.target.files[0]); if (coverStartPreview) URL.revokeObjectURL(coverStartPreview); setCoverStartPreview(URL.createObjectURL(e.target.files[0])); } }} />
+                                        </label>
+                                    ) : (
+                                        <label className="relative bg-black hover:bg-theme-950/30 rounded-2xl border border-theme-600/40 p-4 text-center cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center h-40 shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.1)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.3)] hover:border-theme-400 group">
+                                            <span className="text-xs text-theme-200 uppercase font-black mb-1 group-hover:text-theme-100 transition-colors">Cover Début</span><span className="text-theme-700 text-[10px] font-bold uppercase mb-3">Requis</span><span className="text-theme-400 font-black text-[10px] bg-theme-900/40 border border-theme-500/30 px-3 py-1.5 rounded-lg group-hover:bg-theme-600/30 group-hover:border-theme-400 transition-all">+ AJOUTER</span>
+                                            <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files && e.target.files[0]) { setCoverStartFile(e.target.files[0]); if (coverStartPreview) URL.revokeObjectURL(coverStartPreview); setCoverStartPreview(URL.createObjectURL(e.target.files[0])); } }} />
+                                        </label>
+                                    )}
+                                    {coverEndPreview ? (
+                                        <label className="relative rounded-2xl border border-theme-500 cursor-pointer active:scale-95 transition-all h-40 overflow-hidden shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] block group bg-black">
+                                            <img src={coverEndPreview} className="absolute inset-0 w-full h-full object-contain drop-shadow-2xl relative z-10" />
+                                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-8 pb-3 px-4 flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity z-20"><span className="text-[10px] text-white font-black uppercase drop-shadow-[0_0_5px_rgba(0,0,0,1)]">Fin</span><span className="bg-theme-600/80 border border-theme-400 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">MODIFIER</span></div>
+                                            <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files && e.target.files[0]) { setCoverEndFile(e.target.files[0]); if (coverEndPreview) URL.revokeObjectURL(coverEndPreview); setCoverEndPreview(URL.createObjectURL(e.target.files[0])); } }} />
+                                        </label>
+                                    ) : (
+                                        <label className="relative bg-black hover:bg-theme-950/30 rounded-2xl border border-theme-600/40 p-4 text-center cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center h-40 shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.1)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.3)] hover:border-theme-400 group">
+                                            <span className="text-xs text-theme-200 uppercase font-black mb-1 group-hover:text-theme-100 transition-colors">Cover Fin</span><span className="text-theme-700 text-[10px] font-bold uppercase mb-3">Optionnel</span><span className="text-theme-500 font-black text-[10px] bg-theme-950 border border-theme-800/50 px-3 py-1.5 rounded-lg group-hover:bg-theme-900/50 group-hover:border-theme-600 transition-all">+ AJOUTER</span>
+                                            <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files && e.target.files[0]) { setCoverEndFile(e.target.files[0]); if (coverEndPreview) URL.revokeObjectURL(coverEndPreview); setCoverEndPreview(URL.createObjectURL(e.target.files[0])); } }} />
+                                        </label>
+                                    )}
+                                </div>
+
+                                <div className={`relative rounded-2xl border text-center transition-all h-32 mb-2 group ${orderedPages.length > 0 ? 'bg-theme-950/30 border-theme-500 shadow-[0_0_20px_rgba(var(--theme-rgb),0.3)]' : 'bg-black hover:bg-theme-950/30 border-theme-600/40 shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.1)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.3)] hover:border-theme-400'}`}>
+                                    <label className="absolute inset-0 cursor-pointer flex flex-col items-center justify-center z-10 active:scale-95">
+                                        <span className={`text-xs uppercase font-black mb-2 transition-colors ${orderedPages.length > 0 ? 'text-theme-300' : 'text-theme-200 group-hover:text-theme-100'}`}>Pages Intérieures</span>
+                                        <span className="text-theme-700 text-[10px] font-bold uppercase mb-3">Sélection Multiple</span>
+                                        <input type="file" multiple accept="image/*" className="hidden" onChange={handlePagesSelection} />
+                                        {orderedPages.length > 0 ? (
+                                            <span className="text-theme-100 font-black text-[10px] bg-theme-600/40 border border-theme-400 px-3 py-1.5 rounded-lg shadow-[0_0_15px_rgba(var(--theme-rgb),0.5)]">✓ {orderedPages.length} PAGES</span>
+                                        ) : (
+                                            <span className="text-theme-400 font-black text-[10px] bg-theme-900/40 border border-theme-500/30 px-3 py-1.5 rounded-lg group-hover:bg-theme-600/30 group-hover:border-theme-400 transition-all">+ SÉLECTIONNER</span>
+                                        )}
+                                    </label>
+                                    {orderedPages.length > 0 && (<button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsManualSorting(true); }} className="absolute top-3 right-3 p-2 bg-theme-600/40 text-theme-100 hover:text-white rounded-xl border border-theme-400 hover:bg-theme-500 transition-all z-20 shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)] active:scale-95" title="Modifier l'ordre"><IconSettings width="20" height="20" /></button>)}
+                                </div>
+                            </div>
+                            
+                            <div className="flex gap-4 mt-4 pt-6 border-t border-theme-600/30 flex-none relative z-10">
+                                <button type="button" onClick={onClose} className="flex-1 py-4 sm:py-5 text-theme-500 hover:text-theme-300 hover:bg-theme-950/30 font-black uppercase text-[10px] sm:text-xs rounded-2xl transition-all border border-transparent hover:border-theme-600/40">Annuler</button>
+                                <button type="submit" disabled={(!coverStartFile && !coverDoubleFile) || orderedPages.length === 0} className={`flex-1 py-4 sm:py-5 rounded-2xl font-black uppercase text-[10px] sm:text-xs transition-all shadow-lg border ${((!coverStartFile && !coverDoubleFile) || orderedPages.length === 0) ? 'bg-black text-theme-800 border-theme-900/30 shadow-none cursor-not-allowed' : 'bg-theme-600 text-white border-theme-400 hover:scale-[1.02] shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95'}`}>Lancer l'import</button>
+                            </div>
+                        </form>
+                    </div>
+                    <DragAndDropSort />
+                </>
+            );
+        });
+
+        // --- VIEWS ---
+        const HubView = memo(({
+            animatingManga, search, setSearch, deferredPrompt, handleInstallApp, showBookmarksOnly,
+            setShowBookmarksOnly, setIsAdding, showGlobalSettings, setShowGlobalSettings, appTheme,
+            setAppTheme, shelfTheme, setShelfTheme, handleExport, handleImport, setPurgeConfirm,
+            showTags, setShowTags, activeTags, setActiveTags, libraryStructure,
+            continueReadingManga, getProgressPercent, setActiveCardMenu,
+            isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode, 
+            setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga
+        }) => {
+
+            const [activeGroupFilter, setActiveGroupFilter] = useState(null);
+
+            return (
+                <div 
+                    className="flex flex-col h-full w-full mx-auto relative animate-hub-enter"
+                    style={{ 
+                        transitionProperty: 'transform, opacity', 
+                        transitionDuration: '500ms', 
+                        transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                        transform: animatingManga ? 'scale(0.96)' : 'scale(1)',
+                        opacity: animatingManga ? 0.3 : 1
+                    }}
+                >
+                    {/* Header Supérieur */}
+                    <header 
+                        className="relative flex-none flex flex-col gap-4 p-4 lg:py-6 lg:px-8 bg-black/80 backdrop-blur-xl border-b border-theme-600/30 shadow-[0_4px_30px_rgba(var(--theme-rgb),0.15)] z-30"
+                        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingLeft: 'max(1rem, env(safe-area-inset-left))', paddingRight: 'max(1rem, env(safe-area-inset-right))' }}
+                    >
+                        <div className="flex items-center justify-between w-full">
+                            <h1 className="text-xl sm:text-3xl font-black uppercase tracking-tighter italic cursor-default flex-none">
+                                <span className="text-white" style={{ textShadow: '0 0 10px rgba(255,255,255,0.6), 0 0 20px rgba(var(--theme-rgb),0.5)' }}>Manga</span><span className="text-theme-500" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8), 0 0 30px rgba(var(--theme-rgb),0.8)' }}>Hub</span>
+                            </h1>
+                            
+                            <div className="hidden md:flex flex-1 justify-center px-8">
+                                <div className="relative max-w-xl w-full">
+                                    <div className="absolute inset-y-0 left-4 flex items-center text-theme-400/80 pointer-events-none"><IconSearch /></div>
+                                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher dans la bibliothèque..." className="bg-theme-950/40 border border-theme-500/40 rounded-full py-2.5 pl-11 pr-4 text-sm text-theme-100 outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] focus:bg-theme-900/50 placeholder-theme-300/50 w-full transition-all duration-300 shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.2)]" />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 sm:gap-4 flex-none">
+                                {deferredPrompt && (
+                                    <button onClick={handleInstallApp} className="bg-gradient-to-r from-theme-600 to-theme-800 text-white px-3 sm:px-4 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border border-theme-400 shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.9)] text-[10px] sm:text-xs font-black uppercase tracking-wider animate-[pulse_2s_ease-in-out_infinite]">
+                                        Installer App
+                                    </button>
+                                )}
+                                
+                                {/* Bouton de Filtre des tags déplacé ici */}
+                                {libraryStructure.allAvailableTags.length > 0 && !isSelectionMode && (
+                                    <button onClick={() => setShowTags(!showTags)} className={`w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${showTags || activeTags.length > 0 ? 'bg-theme-600/20 text-theme-300 border-theme-500' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title="Filtrer par tags">
+                                        <IconFilter width="18" height="18" />
+                                    </button>
+                                )}
+
+                                <button onClick={toggleSelectionMode} className={`w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${isSelectionMode ? 'bg-theme-600/20 text-theme-300 border-theme-500' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title="Sélection multiple">
+                                    <IconCheckSquare width="18" height="18" />
+                                </button>
+
+                                <button onClick={() => setIsAdding(true)} className="bg-theme-600/20 text-theme-400 hover:text-theme-300 w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border border-theme-500 shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.8)] hover:bg-theme-600/40" title="Ajouter un manga">
+                                    <IconBookPlus width="18" height="18" />
+                                </button>
+
+                                <div className="relative">
+                                    <button onClick={() => setShowGlobalSettings(!showGlobalSettings)} className={`w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${showGlobalSettings ? 'bg-theme-600/20 text-theme-300 border-theme-500 relative z-[130]' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title="Paramètres"><IconSettings width="18" height="18" /></button>
+                                    
+                                    {showGlobalSettings && (
+                                        <>
+                                            <div className="fixed inset-0 z-[110] cursor-default" onClick={() => setShowGlobalSettings(false)}></div>
+                                            <div className="absolute top-full right-0 mt-2 w-56 bg-slate-900/95 border border-theme-500/40 rounded-2xl shadow-[0_15px_40px_rgba(var(--theme-rgb),0.6)] z-[120] p-5 flex flex-col gap-5 animate-in origin-top-right">
+                                                
+                                                <div>
+                                                    <span className="text-[10px] text-theme-400 font-black uppercase tracking-widest mb-3 block opacity-70 text-center">Thème Visuel</span>
+                                                    <div className="flex justify-center gap-3">
+                                                        <button onClick={() => setAppTheme('blue')} className={`w-6 h-6 rounded-full bg-[#0a46ff] shadow-[0_0_10px_rgba(10,70,255,0.8)] border-2 ${appTheme === 'blue' ? 'border-white' : 'border-transparent'} hover:scale-110 transition-transform`}></button>
+                                                        <button onClick={() => setAppTheme('red')} className={`w-6 h-6 rounded-full bg-[#ff0055] shadow-[0_0_10px_rgba(255,0,85,0.8)] border-2 ${appTheme === 'red' ? 'border-white' : 'border-transparent'} hover:scale-110 transition-transform`}></button>
+                                                        <button onClick={() => setAppTheme('green')} className={`w-6 h-6 rounded-full bg-[#39ff14] shadow-[0_0_10px_rgba(57,255,20,0.8)] border-2 ${appTheme === 'green' ? 'border-white' : 'border-transparent'} hover:scale-110 transition-transform`}></button>
+                                                        <button onClick={() => setAppTheme('purple')} className={`w-6 h-6 rounded-full bg-[#d500ff] shadow-[0_0_10px_rgba(213,0,255,0.8)] border-2 ${appTheme === 'purple' ? 'border-white' : 'border-transparent'} hover:scale-110 transition-transform`}></button>
+                                                        <button onClick={() => setAppTheme('yellow')} className={`w-6 h-6 rounded-full bg-[#ffea00] shadow-[0_0_10px_rgba(255,234,0,0.8)] border-2 ${appTheme === 'yellow' ? 'border-white' : 'border-transparent'} hover:scale-110 transition-transform`}></button>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="h-px bg-theme-900/50 w-full"></div>
+                                                
+                                                <div>
+                                                    <span className="text-[10px] text-theme-400 font-black uppercase tracking-widest mb-2 block opacity-70 text-center">Matériau Étagère</span>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {Object.entries(SHELF_THEMES).map(([key, theme]) => (
+                                                            <button key={key} onClick={() => setShelfTheme(key)} className={`py-1.5 rounded text-[10px] font-black transition-colors border ${shelfTheme === key ? 'bg-theme-500 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.6)]' : 'bg-theme-950/50 text-theme-400 border-theme-800/50 hover:bg-theme-800/50'}`}>
+                                                                {theme.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="h-px bg-theme-900/50 w-full"></div>
+                                                
+                                                <div>
+                                                    <span className="text-[10px] text-theme-400 font-black uppercase tracking-widest mb-2 block opacity-70 text-center">Données & Sauvegarde</span>
+                                                    <div className="flex justify-between gap-2">
+                                                        <button onClick={handleExport} className="flex-1 flex items-center justify-center h-10 bg-theme-900/20 text-theme-400 hover:text-white hover:bg-theme-600/40 rounded-xl transition-all border border-theme-800/50 hover:border-theme-500 hover:shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)]">
+                                                            <IconFloppyUp width="16" height="16" />
+                                                        </button>
+                                                        <label className="flex-1 flex items-center justify-center h-10 bg-theme-900/20 text-theme-400 hover:text-white hover:bg-theme-600/40 rounded-xl transition-all cursor-pointer border border-theme-800/50 hover:border-theme-500 hover:shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)]">
+                                                            <IconFloppyDown width="16" height="16" />
+                                                            <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+                                                        </label>
+                                                        <button onClick={() => { setShowGlobalSettings(false); setPurgeConfirm(true); }} className="flex-1 flex items-center justify-center h-10 bg-red-950/20 text-red-500 hover:text-white hover:bg-red-600/40 rounded-xl transition-all border border-red-900/50 hover:border-red-500 hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]">
+                                                            <IconTrash width="16" height="16" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="md:hidden w-full relative">
+                            <div className="absolute inset-y-0 left-3 flex items-center text-theme-400/80 pointer-events-none"><IconSearch /></div>
+                            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher..." className="bg-theme-950/40 border border-theme-500/40 rounded-full py-2 pl-10 pr-4 text-sm text-theme-100 outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.5)] focus:bg-theme-900/50 placeholder-theme-300/50 w-full transition-all duration-300 shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.2)]" />
+                        </div>
+                    </header>
+                    
+                    <main className="flex-1 flex flex-col overflow-hidden relative bg-black" style={{ paddingLeft: 'max(0px, env(safe-area-inset-left))', paddingRight: 'max(0px, env(safe-area-inset-right))' }}>
+                        {/* Auras d'arrière plan optimisées pour Ultra-Wide */}
+                        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden opacity-60">
+                            <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[1200px] max-h-[1200px] bg-theme-600 rounded-full mix-blend-screen filter blur-[120px] md:blur-[250px] opacity-30 aura-blob-1 gpu-accelerated"></div>
+                            <div className="absolute bottom-[-10%] right-[-10%] w-[70vw] h-[70vw] max-w-[1500px] max-h-[1500px] bg-theme-800 rounded-full mix-blend-screen filter blur-[150px] md:blur-[300px] opacity-40 aura-blob-2 gpu-accelerated"></div>
+                            <div className="absolute top-[20%] right-[20%] w-[50vw] h-[50vw] max-w-[1000px] max-h-[1000px] bg-theme-400 rounded-full mix-blend-screen filter blur-[100px] md:blur-[200px] opacity-20 aura-blob-3 gpu-accelerated"></div>
+                        </div>
+
+                        {/* Zone des Tags Déroulable */}
+                        {showTags && libraryStructure.allAvailableTags.length > 0 && !isSelectionMode && (
+                            <div className="flex-none flex items-center gap-2 overflow-x-auto pb-4 pt-4 px-6 lg:px-10 custom-scrollbar relative z-20 animate-in bg-gradient-to-b from-black/80 to-transparent">
+                                <button onClick={() => setActiveTags([])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${activeTags.length === 0 ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`}>TOUS</button>
+                                {libraryStructure.allAvailableTags.map(t => {
+                                    const isActive = activeTags.includes(t);
+                                    return (<button key={t} onClick={() => setActiveTags(prev => isActive ? prev.filter(x => x !== t) : [...prev, t])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isActive ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`}>{t}</button>)
+                                })}
+                            </div>
+                        )}
+
+                        {/* LA BIBLIOTHÈQUE PHYSIQUE (ÉTAGÈRES) */}
+                        <div className="relative flex-1 w-full min-h-0 z-10">
+                            {/* overflow-x-hidden est essentiel ici pour éviter un scroll horizontal de la page entière à cause des étagères qui fusionnent */}
+                            <div className="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-6 pt-4" style={{ paddingBottom: 'max(4rem, env(safe-area-inset-bottom))' }}>
+                                
+                                {/* Rendu des Piles en Flex Wrap - gap-x-0 pour coller les piles entre elles */}
+                                <div className="flex flex-wrap content-start items-end gap-x-0 gap-y-20 w-full mx-auto mt-4 pb-20 justify-start">
+                                    {libraryStructure.shelves.map((shelf) => {
+                                        const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
+                                        const isFaded = activeGroupFilter && activeGroupFilter !== shelf.title;
+                                        const isHighlighted = activeGroupFilter === shelf.title;
+
+                                        return (
+                                        <div key={shelf.title} className="relative flex flex-col group/shelf shrink-0 max-w-full">
+                                            
+                                            {/* Ligne des mangas de cette pile */}
+                                            <div className="relative flex items-end gap-[1px] sm:gap-[2px] md:gap-[3px] z-10 max-w-full overflow-x-auto shelf-scroll snap-x snap-mandatory" style={{ height: 'clamp(200px, 45vh, 800px)' }}>
+                                                {shelf.mangas.map((m, i) => {
+                                                    const isSelected = isSelectionMode && selectedMangas.has(m.id);
+                                                    const isDouble = !!m.coverDouble;
+                                                    const mainCover = m.coverStart || m.cover;
+                                                    const wrapCoverUrl = getCachedUrl(m.coverDouble);
+
+                                                    // Utilisation des proportions globales mathématiques 
+                                                    // pour garantir que l'étagère match la vue 3D à 100%
+                                                    const bw = MANGA_PROPS.faceW;
+                                                    const bh = MANGA_PROPS.h;
+                                                    const bd = MANGA_PROPS.spineW;
+                                                    const wrapTotalW = (bw * 2) + bd; 
+                                                    const bgSizeSpine = `${(wrapTotalW / bd) * 100}% 100%`;
+                                                    
+                                                    return (
+                                                        <div key={m.id} onClick={(e) => { 
+                                                            if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); }
+                                                            else setInspectingManga(m); 
+                                                        }} className={`manga-cover-image group relative flex-none h-[95%] w-auto shadow-[-3px_0_8px_rgba(0,0,0,0.8)] cursor-pointer z-10 transition-all duration-300 snap-center rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : ''} ${isFaded ? 'opacity-30 grayscale-[0.8] brightness-50 pointer-events-none' : 'hover:-translate-y-4'}`} style={{ backgroundColor: '#0f172a', aspectRatio: `${bd} / ${bh}` }}>
+                                                            
+                                                            {/* Miniature Cover flottante */}
+                                                            <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 mb-2 w-28 sm:w-36 bg-black rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.9)] opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none scale-90 group-hover:scale-100 z-50 overflow-hidden border border-white/10 origin-bottom" style={{ aspectRatio: `${bw} / ${bh}` }}>
+                                                                <StackThumbnail file={mainCover} contain={true} />
+                                                            </div>
+                                                            
+                                                            {/* Tranche Content (Pleine hauteur, zéro rognage vertical) */}
+                                                            <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[2px]">
+                                                                {isDouble && wrapCoverUrl ? (
+                                                                    <>
+                                                                        <div className="w-full h-full opacity-90 group-hover:opacity-100 transition-opacity" style={{ backgroundImage: `url(${wrapCoverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: 'center center', backgroundRepeat: 'no-repeat' }}></div>
+                                                                        <div className="absolute inset-0 bg-black/10 mix-blend-multiply pointer-events-none"></div>
+                                                                    </>
+                                                                ) : (
+                                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                                        <span className={`${themeDef.text} group-hover:text-white font-black text-[9px] sm:text-[10px] uppercase tracking-widest overflow-hidden whitespace-nowrap [text-overflow:clip] text-center w-[200px] leading-none transition-colors absolute`} style={{ transform: 'rotate(90deg)', textShadow: themeDef.textShadow }}>
+                                                                            {m.title}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Mode Sélection Checkmark */}
+                                                            {isSelectionMode && (
+                                                                <div className={`absolute inset-0 z-30 flex items-center justify-center transition-all rounded-[2px] ${isSelected ? 'bg-theme-900/60 backdrop-blur-[2px]' : 'bg-black/40 group-hover:bg-black/20'}`}>
+                                                                    <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-theme-500 bg-theme-500 text-white shadow-[0_0_15px_rgba(var(--theme-rgb),0.8)]' : 'border-white/50 text-transparent'}`}>
+                                                                        <IconCheck width="12" height="12" strokeWidth="3" />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Effet Plat Tranche Manga (Bords nets) */}
+                                                            <div className="absolute inset-0 border-l border-white/20 border-r border-black/80 pointer-events-none rounded-[2px]"></div>
+                                                            <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/60 pointer-events-none opacity-50 rounded-[2px]"></div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                
+                                                {/* Serre-Livres (séparateur visuel direct avec la pile suivante) */}
+                                                <div className={`flex-none w-3 sm:w-4 md:w-5 lg:w-6 xl:w-7 h-[95%] shadow-[-5px_0_15px_rgba(0,0,0,0.8)] border-l border-t relative z-20 flex flex-col justify-end items-center transition-all duration-500 rounded-tr-[2px] ${isFaded ? 'opacity-50 grayscale-[0.5] brightness-75' : 'opacity-100'}`} style={{ ...themeDef.bookend }}>
+                                                    <div className="w-1/2 h-full bg-black/20 absolute left-0 pointer-events-none"></div>
+                                                    <div className="w-full h-3 bg-black/40 absolute bottom-0 pointer-events-none"></div>
+                                                </div>
+                                            </div>
+
+                                            {/* Planche de l'étagère avec Filtre (Le titre est superposé en mode invisible sans filtre) */}
+                                            <div 
+                                                onClick={() => setActiveGroupFilter(prev => prev === shelf.title ? null : shelf.title)}
+                                                className={`h-8 sm:h-10 md:h-12 w-full border-t shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 transition-all duration-500 cursor-pointer flex items-center justify-center group/board ${isFaded ? 'opacity-70 grayscale-[0.5]' : 'opacity-100'}`} 
+                                                style={{ ...themeDef.board }}
+                                                title="Filtrer par cette série"
+                                            >
+                                                {themeDef.texture && <div className={`absolute inset-0 ${themeDef.texture} pointer-events-none`}></div>}
+                                                <span className={`${themeDef.text} font-black text-[9px] sm:text-[10px] uppercase tracking-[0.3em] transition-all absolute px-2 text-center whitespace-nowrap pointer-events-none z-30 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isHighlighted ? 'opacity-100 scale-110 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'opacity-0 group-hover/board:opacity-100'}`} style={{ textShadow: themeDef.textShadow }}>
+                                                    {shelf.title !== "Volumes Indépendants" ? shelf.title : "Indépendants"}
+                                                </span>
+                                            </div>
+                                            
+                                        </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* BARRE D'ACTIONS FLOTTANTE POUR SÉLECTION */}
+                        {isSelectionMode && (
+                            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl border border-theme-500/50 shadow-[0_20px_50px_rgba(var(--theme-rgb),0.5)] px-6 py-4 rounded-2xl flex items-center gap-6 z-[100] animate-slide-up">
+                                <span className="font-black text-white text-sm whitespace-nowrap drop-shadow-[0_0_8px_rgba(var(--theme-rgb),0.8)]">{selectedMangas.size} sélectionné(s)</span>
+                                <div className="flex items-center gap-3">
+                                    <button disabled={selectedMangas.size === 0} onClick={() => setShowBatchEditModal(true)} className="p-2.5 bg-theme-600 text-white rounded-xl hover:scale-105 hover:shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition"><IconSettings width="20" height="20" /></button>
+                                    <button disabled={selectedMangas.size === 0} onClick={() => setBatchDeleteConfirm(true)} className="p-2.5 bg-red-600 text-white rounded-xl hover:scale-105 hover:shadow-[0_0_15px_rgba(220,38,38,0.6)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition"><IconTrash width="20" height="20" /></button>
+                                    <div className="w-px h-8 bg-theme-800/80 mx-1"></div>
+                                    <button onClick={toggleSelectionMode} className="px-4 py-2.5 text-theme-400 hover:text-theme-200 transition font-black text-xs uppercase tracking-widest bg-theme-950/50 rounded-xl border border-theme-800/50 active:scale-95">Annuler</button>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        });
+
+        const ReaderView = memo(({
+            isNightMode, setIsNightMode, isExitingReader, zenMode, setZenMode, handleCloseReader, currentTime,
+            toggleFullscreen, toggleBookmark, currentManga, cursor, handleSetCursor, edgeGlow, currentPages,
+            allSpreads, isLandscape, prevCursor, isPhysicalAnimating, slideDir, drag, physicalStyles,
+            handlePointerDown, handlePointerMove, handlePointerUp, handleWheel, showNextChapterOverlay,
+            setShowNextChapterOverlay, nextChapter, saveProgress, setCurrentManga, setCursor, markAsRead,
+            toggleDisplayMode
+        }) => {
+            
+            // --- ETAT FILMSTRIP (VUE MINIATURE) ---
+            const [previewCursor, setPreviewCursor] = useState(cursor);
+            const [isSliderActive, setIsSliderActive] = useState(false);
+
+            useEffect(() => {
+                if (!isSliderActive) setPreviewCursor(cursor);
+            }, [cursor, isSliderActive]);
+
+            const maxVal = Math.max(0, allSpreads.length - 1);
+            const percent = maxVal > 0 ? (previewCursor / maxVal) * 100 : 0;
+
+            return (
+                <div 
+                    className={`reader-viewport overflow-hidden gpu-accelerated animate-reader-enter transition-[transform,opacity] duration-[400ms] ${isNightMode ? 'night-mode-active' : ''} ${isExitingReader ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}
+                >
+                    <div className={`reader-ui-top ${zenMode ? 'opacity-0 pointer-events-none -translate-y-full' : 'opacity-100 translate-y-0'} flex items-center justify-between w-full px-4 md:px-8 mx-auto`}>
+                        <button onClick={handleCloseReader} className="bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl text-theme-400 active:scale-95 transition flex items-center justify-center border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] hover:text-theme-300 hover:bg-theme-900/30"><IconChevronLeft width="24" height="24" /></button>
+                        
+                        <div className="absolute left-1/2 -translate-x-1/2 px-5 py-2 bg-black/60 backdrop-blur-md rounded-full border border-theme-600/30 text-[10px] sm:text-xs font-black tracking-widest text-white/80 pointer-events-none shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                            {currentTime}
+                        </div>
+
+                        <div className="flex items-center gap-3 sm:gap-4">
+                            <button onClick={toggleDisplayMode} className="bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl active:scale-95 transition flex items-center justify-center border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] text-theme-400 hover:text-theme-300 hover:bg-theme-900/30" title={isLandscape ? "Forcer Page Simple" : "Forcer Double Page"}>
+                                {isLandscape ? <IconSinglePage width="24" height="24" /> : <IconDoublePage width="24" height="24" />}
+                            </button>
+
+                            <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="hidden sm:flex bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl active:scale-95 transition items-center justify-center border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] text-theme-400 hover:text-theme-300 hover:bg-theme-900/30" title="Plein Écran (F)">
+                                <IconMaximize />
+                            </button>
+
+                            <button onClick={toggleBookmark} className={`bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl active:scale-95 transition flex items-center justify-center border shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] ${currentManga?.bookmark === cursor ? 'text-theme-300 border-theme-400 bg-theme-900/40' : 'text-theme-400 border-theme-600/40 hover:text-theme-300 hover:bg-theme-900/30'}`} title={currentManga?.bookmark === cursor ? "Retirer le marque-page" : "Placer un marque-page ici"}>
+                                {currentManga?.bookmark === cursor ? <IconBookmarkFilled width="24" height="24" /> : <IconBookmarkOutline width="24" height="24" />}
+                            </button>
+
+                            <button onClick={(e) => { e.stopPropagation(); setIsNightMode(prev => !prev); }} className={`bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl active:scale-95 transition flex items-center justify-center border shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] ${isNightMode ? 'text-amber-300 border-amber-600/60 bg-amber-900/30' : 'text-theme-400 border-theme-600/40 hover:text-theme-300 hover:bg-theme-900/30'}`} title="Confort des yeux (Sépia)">
+                                {isNightMode ? <IconMoon width="24" height="24" /> : <IconSun width="24" height="24" />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {edgeGlow === 'left' && <div className="absolute top-0 bottom-0 w-32 z-[140] pointer-events-none animate-edge-glow-left"></div>}
+                    {edgeGlow === 'right' && <div className="absolute top-0 bottom-0 w-32 z-[140] pointer-events-none animate-edge-glow-right"></div>}
+
+                    {/* Zone de balayage tactile isolée */}
+                    <div 
+                        className="w-full h-full flex justify-center items-center overflow-hidden relative"
+                        style={{ touchAction: 'none' }}
+                        onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}
+                        onWheel={handleWheel}
+                    >
+                        {currentPages.length === 0 && currentManga ? (
+                            <div className="w-16 h-16 border-4 border-theme-500 border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                            <>
+                                <div className="absolute inset-0 z-10 flex justify-center items-center gpu-accelerated pointer-events-none">
+                                    <SpreadDisplay spread={allSpreads[cursor]} manga={currentManga} isLandscape={isLandscape} hideAmbilight={false} />
+                                </div>
+
+                                {prevCursor !== null && !isPhysicalAnimating && (
+                                    <div className="absolute inset-0 z-20 flex justify-center items-center gpu-accelerated pointer-events-none">
+                                        <SpreadDisplay spread={allSpreads[prevCursor]} manga={currentManga} isLandscape={isLandscape} hideAmbilight={true} />
+                                    </div>
+                                )}
+
+                                {prevCursor !== null && !isPhysicalAnimating && (
+                                    <div key={`enter-${cursor}`} className={`absolute inset-0 z-30 flex justify-center items-center gpu-accelerated pointer-events-none ${
+                                        allSpreads[cursor]?.center && !isLandscape
+                                            ? (currentManga?.direction === 'rtl' ? (slideDir === 'next' ? 'animate-enter-next-rtl' : 'animate-enter-prev-rtl') : (slideDir === 'next' ? 'animate-enter-next-ltr' : 'animate-enter-prev-ltr'))
+                                            : '' 
+                                    }`}>
+                                        <SpreadDisplay spread={allSpreads[cursor]} manga={currentManga} isAnimating={true} slideDir={slideDir} isLandscape={isLandscape} hideAmbilight={true} />
+                                    </div>
+                                )}
+
+                                {isPhysicalAnimating && drag.targetCursor !== null && (
+                                    <div className="absolute inset-0 z-40 flex justify-center items-center gpu-accelerated pointer-events-none">
+                                        <SpreadDisplay spread={allSpreads[drag.targetCursor]} manga={currentManga} physicalStyles={physicalStyles} isLandscape={isLandscape} hideAmbilight={true} />
+                                    </div>
+                                )}
+
+                                {/* Ombre de la reliure globale et permanente */}
+                                {isLandscape && allSpreads.length > 0 && allSpreads[cursor]?.left && allSpreads[cursor]?.right && (
+                                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-16 sm:w-20 bg-gradient-to-r from-transparent via-black/60 to-transparent pointer-events-none z-50 mix-blend-multiply"></div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    {showNextChapterOverlay && (
+                        <div className="absolute inset-0 z-[150] bg-black/95 flex flex-col items-center justify-center p-6 animate-fade" onClick={(e) => e.stopPropagation()}>
+                            <h2 className="text-3xl md:text-5xl font-black text-white uppercase tracking-widest mb-4" style={{ textShadow: '0 0 20px rgba(var(--theme-rgb),0.8)' }}>Chapitre Terminé</h2>
+                            {nextChapter ? (
+                                <div className="animate-in w-full max-w-lg flex flex-col items-center">
+                                    <div className="bg-black/80 border border-theme-600/40 shadow-[0_0_40px_rgba(var(--theme-rgb),0.3)] rounded-3xl p-6 w-full mb-8 flex items-center gap-6">
+                                        <div className="w-24 h-36 bg-black rounded-xl overflow-hidden flex-none shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] border border-theme-600/50"><StackThumbnail file={nextChapter.coverStart || nextChapter.coverDouble || nextChapter.cover} contain={nextChapter.isDoubleCover || !!nextChapter.coverDouble} /></div>
+                                        <div className="flex-1 overflow-hidden"><span className="text-xs text-theme-400 font-black uppercase tracking-widest block mb-2" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8)' }}>{currentManga?.group ? 'Suite de la Pile' : 'Suivant'}</span><h3 className="text-xl md:text-2xl text-white font-black truncate">{nextChapter.title}</h3></div>
+                                    </div>
+                                    <div className="flex gap-4 w-full">
+                                        <button onClick={() => { handleCloseReader(); setShowNextChapterOverlay(false); }} className="flex-1 py-5 bg-black text-theme-400 border border-theme-600/40 font-black text-xs rounded-2xl uppercase transition hover:bg-theme-950/30 hover:border-theme-500">Bibliothèque</button>
+                                        <button onClick={() => { if (currentManga && allSpreads) saveProgress(currentManga.id, cursor, true, allSpreads.length); setCurrentManga(nextChapter); setCursor(nextChapter.bookmark != null ? nextChapter.bookmark : (nextChapter.progress || 0)); markAsRead(nextChapter); setShowNextChapterOverlay(false); }} className="flex-[2] py-5 bg-theme-600 text-white font-black text-sm rounded-2xl uppercase transition shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] hover:scale-105">Lancer la suite</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center gap-8 mt-6 w-full max-w-sm animate-in">
+                                    <p className="text-theme-300/80 text-lg text-center font-bold">{currentManga?.group ? 'Vous avez terminé cette série pour le moment.' : 'Vous avez atteint la fin de la lecture de la sélection.'}</p>
+                                    <button onClick={() => { handleCloseReader(); setShowNextChapterOverlay(false); }} className="w-full py-5 bg-theme-600/20 text-theme-300 border border-theme-500 font-black text-xs rounded-2xl uppercase transition shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)]">Retour à la bibliothèque</button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className={`reader-ui-bottom ${zenMode ? 'opacity-0 pointer-events-none translate-y-full' : 'opacity-100 translate-y-0'} pb-[max(25px,env(safe-area-inset-bottom))]`} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                        <div className="bg-black/80 backdrop-blur-xl p-5 sm:p-6 rounded-3xl border border-theme-600/40 flex flex-col items-center shadow-[0_0_40px_rgba(var(--theme-rgb),0.3)] w-full max-w-4xl gap-3 sm:gap-4 relative">
+                            
+                            <div className="flex justify-between items-center w-full px-3 mb-1">
+                                <span className="text-xs sm:text-sm text-theme-400 font-bold">{cursor + 1}</span>
+                                <span className="text-xs sm:text-sm font-black text-white uppercase tracking-widest" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8)' }}>{allSpreads[cursor]?.info}</span>
+                                <span className="text-xs sm:text-sm text-theme-400 font-bold">{allSpreads.length}</span>
+                            </div>
+
+                            <div className="relative w-full h-8 flex items-center">
+                                <div className={`absolute bottom-full mb-3 -translate-x-1/2 transition-all duration-200 pointer-events-none z-[160] flex flex-col items-center ${isSliderActive ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95'}`}
+                                     style={{ left: `calc(${percent}% + (${12 - percent * 0.24}px))` }}>
+
+                                     <div className="bg-black/90 backdrop-blur-sm text-theme-100 text-[10px] font-black px-4 py-1.5 rounded-full shadow-[0_0_15px_rgba(var(--theme-rgb),0.5)] border border-theme-500/50 whitespace-nowrap mb-2 transform -translate-y-1 drop-shadow-lg">
+                                         {allSpreads[previewCursor]?.info}
+                                     </div>
+
+                                     <div className="bg-slate-900/95 backdrop-blur-xl border-[2px] border-theme-500/80 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_30px_rgba(var(--theme-rgb),0.5)] overflow-hidden h-32 sm:h-48 aspect-auto min-w-[80px] sm:min-w-[120px] flex items-center justify-center p-1 relative">
+                                         <div className="w-full h-full relative flex items-center justify-center bg-transparent rounded-xl overflow-hidden">
+                                            {allSpreads[previewCursor] && (
+                                                allSpreads[previewCursor].center ? (
+                                                    <StackThumbnail file={allSpreads[previewCursor].center} contain={true} />
+                                                ) : (
+                                                    <div className="flex w-full h-full bg-theme-900/50">
+                                                        <div className="w-1/2 h-full relative"><StackThumbnail file={allSpreads[previewCursor].left} contain={true} className="object-right" /></div>
+                                                        <div className="w-1/2 h-full relative -ml-[1px]"><StackThumbnail file={allSpreads[previewCursor].right} contain={true} className="object-left" /></div>
+                                                    </div>
+                                                )
+                                            )}
+                                         </div>
+                                     </div>
+
+                                     <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-t-[10px] border-l-transparent border-r-transparent border-t-theme-500/80 mt-[-2px]"></div>
+                                </div>
+
+                                <input type="range" min="0" max={maxVal} value={previewCursor}
+                                    onTouchStart={(e) => { e.stopPropagation(); setIsSliderActive(true); }}
+                                    onTouchMove={(e) => { e.stopPropagation(); }}
+                                    onTouchEnd={(e) => { e.stopPropagation(); setIsSliderActive(false); handleSetCursor(Number(e.target.value)); }}
+                                    onPointerDown={(e) => { e.stopPropagation(); setIsSliderActive(true); }}
+                                    onPointerUp={(e) => { e.stopPropagation(); setIsSliderActive(false); handleSetCursor(Number(e.target.value)); }}
+                                    onChange={(e) => setPreviewCursor(Number(e.target.value))}
+                                    className="w-full h-2 rounded-lg appearance-none cursor-pointer custom-range z-10 relative" 
+                                    style={{ touchAction: 'none' }}
+                                />
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        });
+
+        // --- APPLICATION ROOT ---
+        const App = () => {
+            const [toast, setToast] = useState(null);
+            const showToast = useCallback((msg, type = 'info') => { 
+                // On bloque silencieusement l'affichage de toutes les notifications vertes (succès)
+                if (type === 'success') return; 
+                setToast({ msg, type, id: Date.now() }); 
+            }, []);
+            useEffect(() => { if (toast) { const timer = setTimeout(() => setToast(null), 3500); return () => clearTimeout(timer); } }, [toast]);
+
+            const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
+            const [displayMode, setDisplayMode] = useState('auto'); // 'auto', 'single', 'double'
+            const effectiveLandscape = displayMode === 'auto' ? isLandscape : displayMode === 'double';
+
+            const toggleDisplayMode = useCallback((e) => {
+                if (e) e.stopPropagation();
+                setDisplayMode(prev => {
+                    const currentlyLandscape = prev === 'auto' ? isLandscape : prev === 'double';
+                    return currentlyLandscape ? 'single' : 'double';
+                });
+            }, [isLandscape]);
+
+            const [appTheme, setAppTheme] = useState(() => getSafeStorage('mangaHubTheme', 'blue'));
+            const [isNightMode, setIsNightMode] = useState(() => getSafeStorage('mangaHubNightMode', 'false') === 'true');
+            const [shelfTheme, setShelfTheme] = useState(() => getSafeStorage('mangaHubShelfTheme', 'mahogany'));
+
+            useEffect(() => { document.body.setAttribute('data-theme', appTheme); setSafeStorage('mangaHubTheme', appTheme); }, [appTheme]);
+            useEffect(() => { setSafeStorage('mangaHubNightMode', isNightMode.toString()); }, [isNightMode]);
+            useEffect(() => { setSafeStorage('mangaHubShelfTheme', shelfTheme); }, [shelfTheme]);
+
+            useEffect(() => {
+                const handleResize = () => setIsLandscape(window.innerWidth > window.innerHeight);
+                window.addEventListener('resize', handleResize); window.addEventListener('orientationchange', handleResize);
+                return () => { window.removeEventListener('resize', handleResize); window.removeEventListener('orientationchange', handleResize); };
+            }, []);
+
+            const [currentTime, setCurrentTime] = useState("");
+            useEffect(() => {
+                const updateClock = () => { setCurrentTime(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })); };
+                updateClock(); const timer = setInterval(updateClock, 30000); return () => clearInterval(timer);
+            }, []);
+
+            const [view, setView] = useState('hub');
+            const [mangas, setMangas] = useState([]);
+            const [search, setSearch] = useState("");
+            const [currentManga, setCurrentManga] = useState(null);
+            const [currentPages, setCurrentPages] = useState([]);
+            const [animatingManga, setAnimatingManga] = useState(null);
+            const [isExitingReader, setIsExitingReader] = useState(false); 
+            
+            const [inspectingManga, setInspectingManga] = useState(null);
+
+            const [isAdding, setIsAdding] = useState(false);
+            const [loading, setLoading] = useState(false);
+            const [importProgress, setImportProgress] = useState(null);
+            const [cursor, setCursor] = useState(0); 
+            const [zenMode, setZenMode] = useState(false);
+            const [showNextChapterOverlay, setShowNextChapterOverlay] = useState(false); 
+            const [slideDir, setSlideDir] = useState('next'); 
+            const [prevCursor, setPrevCursor] = useState(null); 
+            const [edgeGlow, setEdgeGlow] = useState(null); 
+
+            const [drag, setDrag] = useState({ active: false, startX: 0, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false });
+            const dragRaf = useRef(null);
+
+            const [deleteConfirm, setDeleteConfirm] = useState(null);
+            const [purgeConfirm, setPurgeConfirm] = useState(false);
+            const [editingManga, setEditingManga] = useState(null);
+            const [activeCardMenu, setActiveCardMenu] = useState(null); 
+
+            const [activeTags, setActiveTags] = useState([]); 
+            const [showTags, setShowTags] = useState(false); 
+            const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
+            const [showGlobalSettings, setShowGlobalSettings] = useState(false);
+            const [deferredPrompt, setDeferredPrompt] = useState(null);
+            
+            const [isSelectionMode, setIsSelectionMode] = useState(false);
+            const [selectedMangas, setSelectedMangas] = useState(new Set());
+            const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
+            const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+
+            const existingGroups = useMemo(() => {
+                const groups = new Set(mangas.map(m => m.group).filter(Boolean));
+                return Array.from(groups).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+            }, [mangas]);
+
+            const loadMangas = async () => {
+                const db = await initDB();
+                db.transaction(STORE_MANGAS).objectStore(STORE_MANGAS).getAll().onsuccess = e => {
+                    const result = e.target.result || [];
+                    setMangas(result);
+                };
+            };
+            useEffect(() => { loadMangas(); }, []);
+
+            useEffect(() => {
+                if (view === 'reader' && currentManga) {
+                    initDB().then(db => {
+                        db.transaction(STORE_PAGES).objectStore(STORE_PAGES).get(currentManga.id).onsuccess = e => {
+                            if(e.target.result) {
+                                setCurrentPages(e.target.result.pages || []);
+                            }
+                        }
+                    });
+                } else {
+                    setCurrentPages([]); 
+                }
+            }, [view, currentManga]);
+
+            const allSpreads = useMemo(() => {
+                if(!currentManga || !currentPages || currentPages.length === 0) return [];
+                let p = currentPages;
+                const startName = currentManga.coverStart?.name; const endName = currentManga.coverEnd?.name;
+                if (startName || endName) p = p.filter(page => page.name !== startName && page.name !== endName);
+
+                const spreads = []; const isRTL = currentManga.direction === 'rtl'; const isDouble = currentManga.isDoubleCover || !!currentManga.coverDouble;
+                
+                if (effectiveLandscape) {
+                    if (isDouble && currentManga.coverStart && currentManga.coverEnd) {
+                        if (isRTL) spreads.push({ left: currentManga.coverStart, right: currentManga.coverEnd, info: "Couvertures", pageIndices: [-1] });
+                        else spreads.push({ left: currentManga.coverEnd, right: currentManga.coverStart, info: "Couvertures", pageIndices: [-1] });
+                    } else {
+                        const cover = currentManga.coverDouble || currentManga.coverStart;
+                        if (cover) {
+                            if (isRTL) spreads.push({ left: cover, right: null, info: "Couverture", pageIndices: [-1] });
+                            else spreads.push({ left: null, right: cover, info: "Couverture", pageIndices: [-1] });
+                        }
+                    }
+                    for (let i = 0; i < p.length; i += 2) {
+                        const next = p[i+1];
+                        if (!next) {
+                            if (isRTL) spreads.push({ left: null, right: p[i], info: `Page ${i+1}`, pageIndices: [i] });
+                            else spreads.push({ left: p[i], right: null, info: `Page ${i+1}`, pageIndices: [i] });
+                        }
+                        else if (isRTL) spreads.push({ left: p[i+1], right: p[i], info: `Pages ${i+2} - ${i+1}`, pageIndices: [i, i+1] });
+                        else spreads.push({ left: p[i], right: p[i+1], info: `Pages ${i+1} - ${i+2}`, pageIndices: [i, i+1] });
+                    }
+                    if (currentManga.coverEnd && !isDouble) {
+                        if (isRTL) spreads.push({ left: null, right: currentManga.coverEnd, info: "Couverture Fin", pageIndices: [-2] });
+                        else spreads.push({ left: currentManga.coverEnd, right: null, info: "Couverture Fin", pageIndices: [-2] });
+                    }
+                } else {
+                    const startCover = currentManga.coverDouble || currentManga.coverStart;
+                    if (startCover) spreads.push({ center: startCover, info: "Couverture Début", pageIndices: [-1] });
+                    p.forEach((page, i) => spreads.push({ center: page, info: `Page ${i+1}`, pageIndices: [i] }));
+                    if (currentManga.coverEnd) spreads.push({ center: currentManga.coverEnd, info: "Couverture Fin", pageIndices: [-2] });
+                }
+                return spreads;
+            }, [currentManga, currentPages, effectiveLandscape]);
+
+            useEffect(() => {
+                if (view !== 'reader' || !allSpreads.length) {
+                    clearImageCache();
+                    return;
+                }
+                
+                const neededFiles = new Set();
+                const addSpreadToNeeded = (index) => {
+                    const spread = allSpreads[index];
+                    if (spread) {
+                        if (spread.left) neededFiles.add(spread.left);
+                        if (spread.right) neededFiles.add(spread.right);
+                        if (spread.center) neededFiles.add(spread.center);
+                    }
+                };
+
+                for (let i = cursor - 2; i <= cursor + 3; i++) addSpreadToNeeded(i);
+                if (prevCursor !== null) addSpreadToNeeded(prevCursor);
+                if (drag.targetCursor !== null) addSpreadToNeeded(drag.targetCursor);
+
+                for (const [file, url] of globalImageCache.entries()) {
+                    if (!neededFiles.has(file)) {
+                        URL.revokeObjectURL(url);
+                        globalImageCache.delete(file);
+                    }
+                }
+
+                neededFiles.forEach(file => {
+                    if (!globalImageCache.has(file)) {
+                        const url = getCachedUrl(file);
+                        if (url) {
+                            const img = new Image();
+                            img.src = url; 
+                        }
+                    }
+                });
+            }, [cursor, prevCursor, drag.targetCursor, allSpreads, view]);
+
+            const handleOpenManga = useCallback((m, e) => {
+                let rect = { top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0 };
+                if (e && e.currentTarget) {
+                    const coverNode = e.currentTarget.querySelector('.manga-cover-image');
+                    if (coverNode) rect = coverNode.getBoundingClientRect();
+                    else rect = e.currentTarget.getBoundingClientRect();
+                } else {
+                    const fallback = document.getElementById('inspect-book-container');
+                    if (fallback) rect = fallback.getBoundingClientRect();
+                }
+                setAnimatingManga({ manga: m, rect, phase: 'start' });
+            }, []);
+
+            useEffect(() => {
+                if (animatingManga && animatingManga.phase === 'start') {
+                    const rAF = requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            setAnimatingManga(prev => prev ? { ...prev, phase: 'expanding' } : null);
+                        });
+                    });
+                    return () => cancelAnimationFrame(rAF);
+                }
+            }, [animatingManga?.phase]);
+
+            useEffect(() => {
+                if (animatingManga && animatingManga.phase === 'expanding') {
+                    const timer = setTimeout(() => {
+                        const m = animatingManga.manga;
+                        setCurrentManga(m); 
+                        setCursor(m.bookmark != null ? m.bookmark : (m.progress || 0)); 
+                        setView('reader'); 
+                        setZenMode(true); 
+                        markAsRead(m);
+                        
+                        setTimeout(() => setAnimatingManga(null), 50); 
+                    }, 500); 
+                    return () => clearTimeout(timer);
+                }
+            }, [animatingManga?.phase]);
+
+            const handleCloseReader = useCallback((e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                if (currentManga && allSpreads) saveProgress(currentManga.id, cursor, cursor >= allSpreads.length - 1, allSpreads.length);
+                setIsExitingReader(true);
+                setTimeout(() => {
+                    setView('hub'); 
+                    setZenMode(false); 
+                    loadMangas();
+                    setIsExitingReader(false);
+                }, 400);
+            }, [currentManga, allSpreads, cursor]);
+
+            const handleExport = async () => {
+                setLoading(true); setImportProgress("Préparation export JSON...");
+                try {
+                    const db = await initDB();
+                    
+                    // On exécute les transactions l'une APRES l'autre pour éviter que le navigateur les ferme pour inactivité
+                    const allMangasMeta = await new Promise(res => {
+                        db.transaction(STORE_MANGAS, "readonly").objectStore(STORE_MANGAS).getAll().onsuccess = e => res(e.target.result);
+                    });
+                    
+                    const allPages = await new Promise(res => {
+                        db.transaction(STORE_PAGES, "readonly").objectStore(STORE_PAGES).getAll().onsuccess = e => res(e.target.result);
+                    });
+                    
+                    const pagesMap = {};
+                    allPages.forEach(p => pagesMap[p.id] = p.pages);
+
+                    const encodedMangas = [];
+                    for (let i = 0; i < allMangasMeta.length; i++) {
+                        setImportProgress(`Compression... (${i+1}/${allMangasMeta.length})`);
+                        const meta = allMangasMeta[i];
+                        const fullManga = { ...meta, pages: pagesMap[meta.id] || [] };
+                        
+                        const encodeFile = async (f) => {
+                            if (!f) return f;
+                            const blob = deserializeFile(f);
+                            if (!blob) return null;
+                            return { name: blob.name || 'image.jpg', type: blob.type || 'image/jpeg', data: await blobToBase64Async(blob) };
+                        };
+                        
+                        if (fullManga.coverDouble) fullManga.coverDouble = await encodeFile(fullManga.coverDouble);
+                        if (fullManga.coverStart) fullManga.coverStart = await encodeFile(fullManga.coverStart);
+                        if (fullManga.coverEnd) fullManga.coverEnd = await encodeFile(fullManga.coverEnd);
+                        if (fullManga.cover) fullManga.cover = await encodeFile(fullManga.cover);
+                        
+                        const encPages = [];
+                        for(let p of fullManga.pages) encPages.push(await encodeFile(p));
+                        fullManga.pages = encPages;
+                        
+                        encodedMangas.push(fullManga);
+                    }
+                    
+                    const json = JSON.stringify(encodedMangas);
+                    const blob = new Blob([json], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a"); 
+                    a.style.display = "none";
+                    a.href = url; 
+                    a.download = `MangaHub_Backup.json`; 
+                    document.body.appendChild(a); // Injection vitale pour forcer le navigateur
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    
+                    setImportProgress(null); setLoading(false); setShowGlobalSettings(false); showToast("Sauvegarde exportée avec succès", "success");
+                } catch (err) { console.error(err); showToast("Erreur lors de l'export.", "error"); setLoading(false); setImportProgress(null); }
+            };
+
+            const handleImport = async (e) => {
+                const file = e.target.files[0]; if (!file) return;
+                setLoading(true); setImportProgress("Lecture du fichier...");
+                try {
+                    const reader = new FileReader();
+                    reader.onload = async (ev) => {
+                        try {
+                            const data = JSON.parse(ev.target.result);
+                            const db = await initDB();
+                            
+                            for (let i = 0; i < data.length; i++) {
+                                setImportProgress(`Restauration... (${i+1}/${data.length})`);
+                                const item = data[i];
+                                
+                                const decodeFile = async (f) => {
+                                    if (!f || !f.data) return f;
+                                    const blob = await base64ToBlobAsync(f.data, f.type);
+                                    blob.name = f.name; 
+                                    return await serializeFile(blob);
+                                };
+
+                                const meta = { ...item }; delete meta.pages;
+                                if (meta.coverDouble) meta.coverDouble = await decodeFile(meta.coverDouble);
+                                if (meta.coverStart) meta.coverStart = await decodeFile(meta.coverStart);
+                                if (meta.coverEnd) meta.coverEnd = await decodeFile(meta.coverEnd);
+                                if (meta.cover) meta.cover = await decodeFile(meta.cover);
+                                meta.totalPages = item.pages ? item.pages.length : 0;
+                                
+                                const decPages = [];
+                                if(item.pages) { for(let p of item.pages) decPages.push(await decodeFile(p)); }
+                                
+                                await new Promise((res, rej) => {
+                                    const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
+                                    tx.objectStore(STORE_MANGAS).put(meta);
+                                    tx.objectStore(STORE_PAGES).put({id: meta.id, pages: decPages});
+                                    tx.oncomplete = res; tx.onerror = rej;
+                                });
+                            }
+                            setLoading(false); setImportProgress(null); setShowGlobalSettings(false); e.target.value = ''; loadMangas(); showToast("Restauration terminée !", "success");
+                        } catch(err) { console.error(err); showToast("Fichier invalide ou corrompu.", "error"); setLoading(false); setImportProgress(null); e.target.value = ''; }
+                    };
+                    reader.readAsText(file);
+                } catch(err) { console.error(err); setLoading(false); setImportProgress(null); e.target.value = ''; }
+            };
+
+            const handleExportArchive = async (manga, format, e) => {
+                if(e) e.stopPropagation(); setActiveCardMenu(null);
+                setLoading(true); setImportProgress(`Création ${format.toUpperCase()}...`);
+                try {
+                    const db = await initDB();
+                    const pagesData = await new Promise((res) => { db.transaction(STORE_PAGES).objectStore(STORE_PAGES).get(manga.id).onsuccess = ev => res(ev.target.result); });
+                    const fullPages = pagesData ? (pagesData.pages || []).map(deserializeFile) : [];
+
+                    const zip = new JSZip();
+                    const metadata = { title: manga.title || "", group: manga.group || null, direction: manga.direction || "rtl", isDoubleCover: manga.isDoubleCover || false, tags: manga.tags || [], pages: [] };
+                    const addFileToZip = (fileObj, nameBase) => {
+                        if (!fileObj) return null;
+                        const ext = fileObj.type === 'image/png' ? 'png' : fileObj.type === 'image/webp' ? 'webp' : 'jpg';
+                        const filename = `${nameBase}.${ext}`; zip.file(filename, fileObj); return filename;
+                    };
+                    if (deserializeFile(manga.coverDouble)) metadata.coverDouble = addFileToZip(deserializeFile(manga.coverDouble), "cover_double");
+                    if (deserializeFile(manga.coverStart)) metadata.coverStart = addFileToZip(deserializeFile(manga.coverStart), "cover_start");
+                    if (deserializeFile(manga.coverEnd)) metadata.coverEnd = addFileToZip(deserializeFile(manga.coverEnd), "cover_end");
+                    const fallbackCover = deserializeFile(manga.coverDouble || manga.coverStart || manga.cover); if (fallbackCover) addFileToZip(fallbackCover, "000_cover_preview"); 
+                    if (fullPages.length > 0) { fullPages.forEach((p, i) => { const filename = addFileToZip(p, `page_${String(i+1).padStart(3,'0')}`); if (filename) metadata.pages.push(filename); }); }
+                    
+                    zip.file("metadata.json", JSON.stringify(metadata, null, 2));
+                    const content = await zip.generateAsync({ type: "blob" });
+                    const url = URL.createObjectURL(content);
+                    const a = document.createElement("a"); 
+                    a.style.display = "none";
+                    a.href = url; 
+                    a.download = `${(manga.title || 'Manga').replace(/[^a-z0-9]/gi,'_')}.${format}`; 
+                    document.body.appendChild(a); // Injection vitale pour forcer le navigateur
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    
+                    setLoading(false); setImportProgress(null); showToast(`Archive ${format.toUpperCase()} exportée !`, "success");
+                } catch (error) { console.error(error); showToast(`Erreur lors de l'export ${format.toUpperCase()}.`, "error"); setLoading(false); setImportProgress(null); }
+            };
+
+            const saveProgress = async (mangaId, newCursor, isFinished = false, currentTotalSpreads = 0) => {
+                const db = await initDB(); const tx = db.transaction(STORE_MANGAS, "readwrite");
+                const store = tx.objectStore(STORE_MANGAS);
+                store.get(mangaId).onsuccess = (e) => {
+                    const manga = e.target.result;
+                    if (manga) { 
+                        manga.progress = newCursor; manga.isFinished = isFinished;
+                        if (currentTotalSpreads > 0) manga.totalSpreads = currentTotalSpreads;
+                        if (isFinished) manga.bookmark = null; 
+                        manga.lastRead = Date.now(); store.put(manga); 
+                        if (isFinished && currentManga && currentManga.id === mangaId && currentManga.bookmark != null) {
+                            setCurrentManga(prev => ({...prev, bookmark: null})); loadMangas();
+                        }
+                    }
+                };
+            };
+
+            useEffect(() => {
+                if (view === 'reader' && currentManga && allSpreads) {
+                    const timer = setTimeout(() => { saveProgress(currentManga.id, cursor, cursor >= (allSpreads.length || 1) - 1, allSpreads.length); }, 500);
+                    return () => clearTimeout(timer);
+                }
+            }, [cursor, currentManga, view, allSpreads]);
+
+            const markAsRead = async (manga) => {
+                const db = await initDB(); const tx = db.transaction(STORE_MANGAS, "readwrite");
+                tx.objectStore(STORE_MANGAS).get(manga.id).onsuccess = (e) => {
+                    const dbManga = e.target.result;
+                    if (dbManga) { dbManga.lastRead = Date.now(); tx.objectStore(STORE_MANGAS).put(dbManga); loadMangas(); }
+                };
+            };
+            
+            const toggleBookmark = async (e) => {
+                if (e && e.stopPropagation) e.stopPropagation(); 
+                if (!currentManga) return;
+                triggerHaptic(50); 
+                const newBookmark = currentManga.bookmark === cursor ? null : cursor;
+                setCurrentManga(prev => ({...prev, bookmark: newBookmark})); 
+                const db = await initDB(); const tx = db.transaction(STORE_MANGAS, "readwrite");
+                tx.objectStore(STORE_MANGAS).get(currentManga.id).onsuccess = (ev) => {
+                    const manga = ev.target.result; if (manga) { manga.bookmark = newBookmark; tx.objectStore(STORE_MANGAS).put(manga); }
+                };
+                tx.oncomplete = () => { loadMangas(); showToast(newBookmark !== null ? "Marque-page ajouté" : "Marque-page retiré", "info"); };
+            };
+
+            const executeUpdateManga = async (e) => {
+                e.preventDefault(); 
+                const nt = e.target.title.value; 
+                const ng = e.target.group.value.trim() || null;
+                const nTags = e.target.tags.value.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+                setLoading(true); const db = await initDB(); const tx = db.transaction(STORE_MANGAS, "readwrite");
+                tx.objectStore(STORE_MANGAS).get(editingManga.id).onsuccess = (ev) => {
+                    const item = ev.target.result; if (item) { item.title = nt; item.group = ng; item.tags = nTags; tx.objectStore(STORE_MANGAS).put(item); }
+                };
+                tx.oncomplete = () => { setLoading(false); setEditingManga(null); setActiveCardMenu(null); loadMangas(); showToast("Manga mis à jour", "success"); };
+            };
+
+            const executePurge = async () => { setLoading(true); const db = await initDB(); const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite"); tx.objectStore(STORE_MANGAS).clear(); tx.objectStore(STORE_PAGES).clear(); tx.oncomplete = () => window.location.reload(); };
+
+            const getProgressPercent = (m) => {
+                if (!m) return 0; if (m.isFinished) return 100;
+                if (m.totalSpreads && m.totalSpreads > 1) return Math.min(100, Math.round((m.progress / (m.totalSpreads - 1)) * 100));
+                return Math.min(100, Math.round((m.progress / Math.max(1, m.totalPages || 1)) * 100));
+            };
+
+            const toggleSelectionMode = useCallback(() => {
+                setIsSelectionMode(prev => !prev);
+                setSelectedMangas(new Set());
+            }, []);
+
+            const toggleMangaSelection = useCallback((mangaId) => {
+                setSelectedMangas(prev => {
+                    const newSet = new Set(prev);
+                    if (newSet.has(mangaId)) newSet.delete(mangaId);
+                    else newSet.add(mangaId);
+                    return newSet;
+                });
+                triggerHaptic(20);
+            }, []);
+
+            const executeBatchDelete = async () => {
+                setLoading(true);
+                const db = await initDB();
+                const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
+                selectedMangas.forEach(id => {
+                    tx.objectStore(STORE_MANGAS).delete(id);
+                    tx.objectStore(STORE_PAGES).delete(id);
+                });
+                tx.oncomplete = () => {
+                    setLoading(false);
+                    setBatchDeleteConfirm(false);
+                    setIsSelectionMode(false);
+                    const count = selectedMangas.size;
+                    setSelectedMangas(new Set());
+                    loadMangas();
+                    showToast(`${count} mangas supprimés`, "error");
+                };
+            };
+
+            const executeBatchEdit = async (e) => {
+                e.preventDefault();
+                const ng = e.target.group.value.trim();
+                const nTags = e.target.tags.value.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+                
+                if (!ng && nTags.length === 0) {
+                    setShowBatchEditModal(false);
+                    return;
+                }
+
+                setLoading(true);
+                const db = await initDB();
+                const tx = db.transaction(STORE_MANGAS, "readwrite");
+                const store = tx.objectStore(STORE_MANGAS);
+                
+                Array.from(selectedMangas).forEach(id => {
+                    store.get(id).onsuccess = (ev) => {
+                        const item = ev.target.result;
+                        if (item) {
+                            if (ng) item.group = ng === 'CLEAR' ? null : ng;
+                            if (nTags.length > 0) {
+                                const currentTags = new Set(item.tags || []);
+                                nTags.forEach(t => currentTags.add(t));
+                                item.tags = Array.from(currentTags);
+                            }
+                            store.put(item);
+                        }
+                    };
+                });
+                
+                tx.oncomplete = () => {
+                    setLoading(false);
+                    setShowBatchEditModal(false);
+                    setIsSelectionMode(false);
+                    setSelectedMangas(new Set());
+                    loadMangas();
+                    showToast("Sélection mise à jour", "success");
+                };
+            };
+
+            const libraryStructure = useMemo(() => {
+                const tagsSet = new Set();
+                const normalizedMangas = mangas.map(m => {
+                    const tSet = new Set((m.tags || []).map(t => t.toUpperCase()));
+                    return { ...m, tags: Array.from(tSet).sort() };
+                });
+                normalizedMangas.forEach(m => m.tags.forEach(t => tagsSet.add(t)));
+                const allAvailableTags = Array.from(tagsSet).sort();
+                
+                let filtered = normalizedMangas.filter(m => {
+                    const matchSearch = m.title.toLowerCase().includes(search.toLowerCase()) || (m.group && m.group.toLowerCase().includes(search.toLowerCase()));
+                    const matchTags = activeTags.length === 0 || activeTags.every(t => m.tags.includes(t));
+                    const matchBookmark = showBookmarksOnly ? (m.bookmark != null) : true;
+                    return matchSearch && matchTags && matchBookmark;
+                });
+
+                const shelvesMap = {};
+                filtered.forEach(m => {
+                    const g = m.group || "Volumes Indépendants";
+                    if (!shelvesMap[g]) shelvesMap[g] = { title: g, mangas: [], date: m.date };
+                    shelvesMap[g].mangas.push(m);
+                    if (m.date > shelvesMap[g].date) shelvesMap[g].date = m.date;
+                });
+
+                const sortedShelves = Object.values(shelvesMap).sort((a, b) => {
+                    if (a.title === "Volumes Indépendants") return 1;
+                    if (b.title === "Volumes Indépendants") return -1;
+                    return a.title.localeCompare(b.title);
+                });
+
+                sortedShelves.forEach(s => s.mangas.sort((a,b) => a.title.localeCompare(b.title, undefined, {numeric: true})));
+
+                return { shelves: sortedShelves, allAvailableTags };
+            }, [mangas, search, activeTags, showBookmarksOnly]);
+
+            const prevOrientation = useRef(effectiveLandscape);
+            const prevSpreadsRef = useRef(allSpreads);
+
+            useEffect(() => {
+                if (prevOrientation.current !== effectiveLandscape && allSpreads && allSpreads.length > 0) {
+                    const oldSpreads = prevSpreadsRef.current; const currentSpread = oldSpreads[cursor];
+                    if (currentSpread && currentSpread.pageIndices) {
+                        const isRTL = currentManga?.direction === 'rtl'; let targetPage = currentSpread.pageIndices[0];
+                        if (prevOrientation.current === true && effectiveLandscape === false && currentSpread.pageIndices.length === 2) { targetPage = isRTL ? currentSpread.pageIndices[0] : currentSpread.pageIndices[1]; }
+                        const newCursor = allSpreads.findIndex(s => s.pageIndices.includes(targetPage));
+                        if (newCursor !== -1 && newCursor !== cursor) { setCursor(newCursor); }
+                    }
+                    prevOrientation.current = effectiveLandscape;
+                }
+                prevSpreadsRef.current = allSpreads;
+            }, [effectiveLandscape, allSpreads, currentManga, cursor]);
+
+            const handleSetCursor = (newVal, fromTap = null) => {
+                if (newVal === cursor) return;
+                if (fromTap) { setEdgeGlow(fromTap); setTimeout(() => setEdgeGlow(null), 400); }
+                setPrevCursor(cursor); setSlideDir(newVal > cursor ? 'next' : 'prev'); setCursor(newVal); setShowNextChapterOverlay(false); setTimeout(() => setPrevCursor(null), 1000); 
+            };
+
+            const toggleFullscreen = async () => {
+                if (!document.fullscreenElement) {
+                    await document.documentElement.requestFullscreen().catch(e => console.log(e));
+                } else {
+                    if (document.exitFullscreen) await document.exitFullscreen();
+                }
+            };
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (view !== 'reader' || isAdding || showGlobalSettings || !allSpreads || activeCardMenu) return;
+                    const isRTL = currentManga?.direction === 'rtl';
+                    if (e.key === 'Escape') { handleCloseReader(); return; }
+                    if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
+
+                    if (e.key === 'ArrowRight' || (e.key === ' ' && !e.shiftKey)) {
+                        if (e.key === ' ') e.preventDefault(); const goNext = isRTL && e.key !== ' ' ? false : true;
+                        if (goNext) { if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, 'right'); else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); } } 
+                        else { if (showNextChapterOverlay) setShowNextChapterOverlay(false); else if (cursor > 0) handleSetCursor(cursor - 1, 'right'); }
+                    } else if (e.key === 'ArrowLeft' || e.key === 'Backspace' || (e.key === ' ' && e.shiftKey)) {
+                        if (e.key === ' ' || e.key === 'Backspace') e.preventDefault(); const goNext = isRTL && e.key === 'ArrowLeft' ? true : false;
+                        if (goNext) { if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, 'left'); else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); } } 
+                        else { if (showNextChapterOverlay) setShowNextChapterOverlay(false); else if (cursor > 0) handleSetCursor(cursor - 1, 'left'); }
+                    } else if (e.key === 'ArrowUp') { setZenMode(prev => !prev); }
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [view, cursor, allSpreads, showNextChapterOverlay, isAdding, showGlobalSettings, currentManga, activeCardMenu, handleCloseReader]);
+
+            const wheelTimeout = useRef(null);
+            const handleWheel = useCallback((e) => {
+                if (view !== 'reader' || showNextChapterOverlay) return;
+                if (wheelTimeout.current) return;
+                
+                const isRTL = currentManga?.direction === 'rtl';
+                let goNext = false; let goPrev = false;
+
+                if (e.deltaY > 40) { goNext = isRTL ? false : true; goPrev = isRTL ? true : false; }
+                else if (e.deltaY < -40) { goNext = isRTL ? true : false; goPrev = isRTL ? false : true; }
+
+                if (goNext) {
+                    if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, isRTL ? 'left' : 'right');
+                    else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); }
+                } else if (goPrev) {
+                    if (cursor > 0) handleSetCursor(cursor - 1, isRTL ? 'right' : 'left');
+                }
+
+                if (goNext || goPrev) {
+                    wheelTimeout.current = setTimeout(() => { wheelTimeout.current = null; }, 600);
+                }
+            }, [view, cursor, allSpreads, currentManga, showNextChapterOverlay]);
+
+            const isPhysicalAnimating = drag.active || drag.snapping;
+            let physicalStyles = null;
+            if (isPhysicalAnimating) {
+                const isRTL = currentManga?.direction === 'rtl'; const p = drag.progress; const trans = drag.snapping ? 'transform 0.4s cubic-bezier(0.15, 0.9, 0.3, 1), filter 0.4s' : 'none';
+                const brightness = 1 - (Math.sin(p * Math.PI) * 0.4); 
+                const filterStyle = `brightness(${brightness})`;
+                let singleAngle = 0; let singleOrigin = 'center'; let leftStyle = {}; let rightStyle = {};
+
+                if (isRTL) {
+                    if (drag.dir === 'next') { singleAngle = -90 + (p * 90); singleOrigin = 'left center'; rightStyle = { transform: `perspective(2000px) rotateY(${-90 + (p * 90)}deg)`, transformOrigin: 'left center', transition: trans, filter: filterStyle }; }
+                    if (drag.dir === 'prev') { singleAngle = 90 - (p * 90); singleOrigin = 'right center'; leftStyle = { transform: `perspective(2000px) rotateY(${90 - (p * 90)}deg)`, transformOrigin: 'right center', transition: trans, filter: filterStyle }; }
+                } else {
+                    if (drag.dir === 'next') { singleAngle = 90 - (p * 90); singleOrigin = 'right center'; leftStyle = { transform: `perspective(2000px) rotateY(${90 - (p * 90)}deg)`, transformOrigin: 'right center', transition: trans, filter: filterStyle }; }
+                    if (drag.dir === 'prev') { singleAngle = -90 + (p * 90); singleOrigin = 'left center'; rightStyle = { transform: `perspective(2000px) rotateY(${-90 + (p * 90)}deg)`, transformOrigin: 'left center', transition: trans, filter: filterStyle }; }
+                }
+                physicalStyles = { single: { transform: `perspective(2000px) rotateY(${singleAngle}deg)`, transformOrigin: singleOrigin, transition: trans, filter: filterStyle }, left: leftStyle, right: rightStyle };
+            }
+
+            const handlePointerDown = (e) => {
+                if (showNextChapterOverlay || prevCursor !== null) return;
+                if (e.target.tagName?.toLowerCase() === 'input' || e.target.closest('button')) return;
+                if (window.visualViewport && window.visualViewport.scale > 1.05) return;
+                e.target.setPointerCapture(e.pointerId); setDrag({ active: true, startX: e.clientX, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false });
+            };
+
+            const handlePointerMove = (e) => {
+                if (!drag.active || !allSpreads || (window.visualViewport && window.visualViewport.scale > 1.05)) return;
+                const clientX = e.clientX; const isRTL = currentManga?.direction === 'rtl';
+                if (dragRaf.current) cancelAnimationFrame(dragRaf.current);
+                dragRaf.current = requestAnimationFrame(() => {
+                    setDrag(prev => {
+                        const diffX = clientX - prev.startX; let dir = null;
+                        if (diffX > 5) dir = isRTL ? 'next' : 'prev'; else if (diffX < -5) dir = isRTL ? 'prev' : 'next';
+                        let targetCursor = null; if (dir === 'next') targetCursor = cursor + 1; if (dir === 'prev') targetCursor = cursor - 1;
+                        let progress = 0;
+                        if (targetCursor !== null && targetCursor >= 0 && targetCursor < allSpreads.length) progress = Math.min(1, Math.abs(diffX) / window.innerWidth);
+                        else progress = Math.min(0.15, Math.abs(diffX) / (window.innerWidth * 3)); 
+                        return { ...prev, diffX, dir, targetCursor, progress };
+                    });
+                });
+            };
+
+            const handlePointerUp = (e) => {
+                if (dragRaf.current) cancelAnimationFrame(dragRaf.current);
+                if (!drag.active || !allSpreads) return;
+                if (e.target.hasPointerCapture(e.pointerId)) e.target.releasePointerCapture(e.pointerId);
+
+                const isClick = Math.abs(drag.diffX) < 10;
+                if (isClick) {
+                    setDrag({ active: false, startX: 0, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false });
+                    const x = drag.startX; const w = window.innerWidth;
+                    if (x > w*0.30 && x < w*0.70) { setZenMode(!zenMode); } 
+                    else {
+                        const isRTL = currentManga?.direction === 'rtl';
+                        const clickedRight = x >= w*0.70; const clickedLeft = x <= w*0.30;
+                        let goNext = false; let goPrev = false;
+                        if (clickedRight) { goNext = isRTL ? false : true; goPrev = isRTL ? true : false; }
+                        else if (clickedLeft) { goNext = isRTL ? true : false; goPrev = isRTL ? false : true; }
+                        if (goNext) { if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, clickedRight ? 'right' : 'left'); else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); } } 
+                        else if (goPrev) { if (showNextChapterOverlay) setShowNextChapterOverlay(false); else if (cursor > 0) handleSetCursor(cursor - 1, clickedRight ? 'right' : 'left'); }
+                    }
+                    return;
+                }
+
+                if (drag.progress > 0.20 && drag.targetCursor !== null && drag.targetCursor >= 0 && drag.targetCursor < allSpreads.length) {
+                    triggerHaptic(30); 
+                    setDrag(prev => ({ ...prev, active: false, snapping: 'forward', progress: 1 }));
+                    setTimeout(() => {
+                        const finalCursor = drag.targetCursor; setCursor(finalCursor);
+                        if (currentManga && allSpreads) saveProgress(currentManga.id, finalCursor, finalCursor >= allSpreads.length - 1, allSpreads.length);
+                        setTimeout(() => { setDrag({ active: false, startX: 0, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false }); }, 150);
+                    }, 400);
+                } else {
+                    if (drag.targetCursor !== null && drag.targetCursor >= allSpreads.length && drag.progress > 0.1) { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); }
+                    setDrag(prev => ({ ...prev, active: false, snapping: 'backward', progress: 0 }));
+                    setTimeout(() => { setDrag({ active: false, startX: 0, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false }); }, 400);
+                }
+            };
+
+            const continueReadingManga = useMemo(() => {
+                if (search || activeTags.length > 0 || showBookmarksOnly || isSelectionMode) return null;
+                const inProgress = mangas.filter(m => m.progress > 0 && !m.isFinished);
+                if (inProgress.length === 0) return null;
+                return inProgress.sort((a, b) => (b.lastRead || 0) - (a.lastRead || 0))[0];
+            }, [mangas, search, activeTags, showBookmarksOnly, isSelectionMode]);
+
+            const nextChapter = useMemo(() => {
+                if (!currentManga) return null;
+                let contextMangas = mangas;
+                if (currentManga.group) {
+                    contextMangas = mangas.filter(m => m.group === currentManga.group);
+                    contextMangas.sort((a,b) => a.title.localeCompare(b.title, undefined, {numeric: true}));
+                } else {
+                    contextMangas = [...mangas].sort((a,b) => a.title.localeCompare(b.title, undefined, {numeric: true}));
+                }
+                const currentIndex = contextMangas.findIndex(m => m.id === currentManga.id);
+                if (currentIndex >= 0 && currentIndex < contextMangas.length - 1) return contextMangas[currentIndex + 1];
+                return null;
+            }, [currentManga, mangas]);
+
+            // Calcul du manga précédent/suivant pour la navigation 3D de l'inspecteur
+            const { inspectorPrev, inspectorNext } = useMemo(() => {
+                if (!inspectingManga) return { inspectorPrev: null, inspectorNext: null };
+                let contextMangas = mangas;
+                if (inspectingManga.group) {
+                    contextMangas = mangas.filter(m => m.group === inspectingManga.group);
+                } else {
+                    contextMangas = mangas.filter(m => !m.group); // Volumes indépendants
+                }
+                contextMangas.sort((a,b) => a.title.localeCompare(b.title, undefined, {numeric: true}));
+                const idx = contextMangas.findIndex(m => m.id === inspectingManga.id);
+                return {
+                    inspectorPrev: idx > 0 ? contextMangas[idx - 1] : null,
+                    inspectorNext: idx >= 0 && idx < contextMangas.length - 1 ? contextMangas[idx + 1] : null
+                };
+            }, [inspectingManga, mangas]);
+
+            const handleInstallApp = useCallback(() => { 
+                if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => setDeferredPrompt(null)); } 
+            }, [deferredPrompt]);
+
+            return (
+                <div className="h-full w-full bg-black text-white flex flex-col items-center">
+                    
+                    {view === 'hub' && (
+                        <HubView 
+                            animatingManga={animatingManga} search={search} setSearch={setSearch} deferredPrompt={deferredPrompt} handleInstallApp={handleInstallApp}
+                            showBookmarksOnly={showBookmarksOnly} setShowBookmarksOnly={setShowBookmarksOnly} setIsAdding={setIsAdding} showGlobalSettings={showGlobalSettings}
+                            setShowGlobalSettings={setShowGlobalSettings} appTheme={appTheme} setAppTheme={setAppTheme} shelfTheme={shelfTheme} setShelfTheme={setShelfTheme}
+                            handleExport={handleExport} handleImport={handleImport} setPurgeConfirm={setPurgeConfirm} showTags={showTags}
+                            setShowTags={setShowTags} activeTags={activeTags} setActiveTags={setActiveTags} libraryStructure={libraryStructure} continueReadingManga={continueReadingManga}
+                            handleOpenManga={handleOpenManga} getProgressPercent={getProgressPercent} setActiveCardMenu={setActiveCardMenu}
+                            isSelectionMode={isSelectionMode} selectedMangas={selectedMangas}
+                            toggleMangaSelection={toggleMangaSelection} toggleSelectionMode={toggleSelectionMode} setShowBatchEditModal={setShowBatchEditModal}
+                            setBatchDeleteConfirm={setBatchDeleteConfirm} setInspectingManga={setInspectingManga}
+                        />
+                    )}
+
+                    {view === 'reader' && (
+                        <ReaderView 
+                            isNightMode={isNightMode} setIsNightMode={setIsNightMode} isExitingReader={isExitingReader} zenMode={zenMode} setZenMode={setZenMode}
+                            handleCloseReader={handleCloseReader} currentTime={currentTime} toggleFullscreen={toggleFullscreen} toggleBookmark={toggleBookmark} currentManga={currentManga}
+                            cursor={cursor} handleSetCursor={handleSetCursor} edgeGlow={edgeGlow} currentPages={currentPages} allSpreads={allSpreads} isLandscape={effectiveLandscape}
+                            prevCursor={prevCursor} isPhysicalAnimating={isPhysicalAnimating} slideDir={slideDir} drag={drag} physicalStyles={physicalStyles}
+                            handlePointerDown={handlePointerDown} handlePointerMove={handlePointerMove} handlePointerUp={handlePointerUp} handleWheel={handleWheel}
+                            showNextChapterOverlay={showNextChapterOverlay} setShowNextChapterOverlay={setShowNextChapterOverlay} nextChapter={nextChapter} saveProgress={saveProgress}
+                            setCurrentManga={setCurrentManga} setCursor={setCursor} markAsRead={markAsRead} toggleDisplayMode={toggleDisplayMode}
+                        />
+                    )}
+
+                    {/* OVERLAY TOMB RAIDER (Inspection 3D) */}
+                    {inspectingManga && (
+                        <MangaInspector 
+                            manga={inspectingManga} 
+                            onClose={() => setInspectingManga(null)} 
+                            onRead={(m, e) => {
+                                handleOpenManga(m, e);
+                                setTimeout(() => setInspectingManga(null), 100);
+                            }}
+                            isAnimatingOut={!!animatingManga}
+                            onOpenMenu={(m) => {
+                                setInspectingManga(null);
+                                setTimeout(() => setActiveCardMenu(m), 300); // Ouvre le menu après la fermeture de l'inspecteur
+                            }}
+                            hasPrev={!!inspectorPrev}
+                            hasNext={!!inspectorNext}
+                            onPrev={() => { triggerHaptic(30); setInspectingManga(inspectorPrev); }}
+                            onNext={() => { triggerHaptic(30); setInspectingManga(inspectorNext); }}
+                        />
+                    )}
+
+                    <MangaActionsModal activeCardMenu={activeCardMenu} onClose={() => setActiveCardMenu(null)} onEdit={(manga) => setEditingManga(manga)} onExport={handleExportArchive} onDelete={(id) => { setActiveCardMenu(null); setDeleteConfirm(id); }} />
+                    <EditMangaModal editingManga={editingManga} onClose={() => setEditingManga(null)} onSubmit={executeUpdateManga} existingGroups={existingGroups} />
+                    <BatchEditModal isOpen={showBatchEditModal} count={selectedMangas.size} onClose={() => setShowBatchEditModal(false)} onSubmit={executeBatchEdit} />
+                    <ConfirmModal 
+                        isOpen={deleteConfirm !== null || purgeConfirm || batchDeleteConfirm} 
+                        title={batchDeleteConfirm ? `Supprimer ${selectedMangas.size} mangas ?` : "Confirmer ?"}
+                        onCancel={() => { setDeleteConfirm(null); setPurgeConfirm(false); setBatchDeleteConfirm(false); }} 
+                        onConfirm={() => { 
+                            if (batchDeleteConfirm) { executeBatchDelete(); }
+                            else if (deleteConfirm) { initDB().then(db => { const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite"); tx.objectStore(STORE_MANGAS).delete(deleteConfirm); tx.objectStore(STORE_PAGES).delete(deleteConfirm); tx.oncomplete = () => { setDeleteConfirm(null); loadMangas(); showToast("Manga supprimé", "error"); }; }); } 
+                            else { executePurge(); } 
+                        }} 
+                    />
+                    {isAdding && (<AddChapterModal onClose={() => setIsAdding(false)} onSuccess={() => { setIsAdding(false); loadMangas(); }} setLoading={setLoading} setImportProgress={setImportProgress} showToast={showToast} existingGroups={existingGroups} />)}
+                    <LoadingOverlay loading={loading} importProgress={importProgress} />
+                    <ToastNotification toast={toast} />
+
+                    {animatingManga && (
+                        <div className="fixed inset-0 z-[2000] pointer-events-none">
+                            <div className="absolute inset-0 bg-black transition-opacity duration-[500ms] ease-[cubic-bezier(0.22,1,0.36,1)]" style={{ opacity: animatingManga.phase === 'expanding' ? 1 : 0 }} />
+                            <div className="absolute overflow-hidden transition-[top,left,width,height,border-radius] duration-[500ms] ease-[cubic-bezier(0.22,1,0.36,1)] shadow-[0_30px_60px_rgba(0,0,0,0.9)]"
+                                style={{ top: animatingManga.phase === 'expanding' ? '0px' : animatingManga.rect.top + 'px', left: animatingManga.phase === 'expanding' ? '0px' : animatingManga.rect.left + 'px', width: animatingManga.phase === 'expanding' ? '100vw' : animatingManga.rect.width + 'px', height: animatingManga.phase === 'expanding' ? '100vh' : animatingManga.rect.height + 'px', borderRadius: animatingManga.phase === 'expanding' ? '0px' : '16px', transform: 'translateZ(0)' }}>
+                                <AnimatedCover file={animatingManga.manga.coverDouble || animatingManga.manga.coverStart || animatingManga.manga.cover} />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                if (window.location.protocol !== 'blob:') {
+                    navigator.serviceWorker.register('./sw.js')
+                        .then(reg => console.log('Service Worker enregistré !', reg))
+                        .catch(err => console.error('Erreur Service Worker', err));
+                }
+            });
+        }
+    </script>
+</body>
+</html>
