@@ -681,53 +681,17 @@
                 trStyle = { transition: 'none', transform: 'translateX(-40vw) translateZ(-600px) scale(0.6) rotateY(60deg)', opacity: 0 };
             }
 
-            // --- CALCULS DE TRANSITION 3D INTELLIGENTE ---
-            let targetScaleOpening = scale;
-            if (effectiveLandscape && isDouble) {
-                targetScaleOpening = Math.min(window.innerWidth / (bw * 2 + bd), window.innerHeight / bh) * 0.98;
-            } else if (effectiveLandscape && !isDouble) {
-                targetScaleOpening = Math.min((window.innerWidth / 2) / bw, window.innerHeight / bh) * 0.98;
-            } else {
-                targetScaleOpening = Math.min(window.innerWidth / bw, window.innerHeight / bh) * 0.98;
-            }
-
-            const frontOrigin = spineIsRight ? `${bw - bd/2}px center` : `${bd/2}px center`;
-            const backOrigin = spineIsRight ? `${bd/2}px center` : `${bw - bd/2}px center`;
-
-            let frontCoverTransform = `translateZ(${bd/2}px) rotateY(0deg)`;
-            let backCoverTransform = `translateZ(${-bd/2}px) rotateY(180deg)`;
-            let bookRotateY = rotY;
-            let bookRotateX = rotX;
-            let containerTransform = `translateX(0px) scale(${scale}) translateY(0px)`;
-
-            if (isOpening) {
-                bookRotateX = 0;
-                if (effectiveLandscape && isDouble) {
-                    bookRotateY = spineIsRight ? -90 : 90;
-                    containerTransform = `translateX(0px) scale(${targetScaleOpening}) translateY(0px)`;
-                    frontCoverTransform = `translateZ(${bd/2}px) rotateY(${spineIsRight ? 90 : -90}deg)`;
-                    backCoverTransform = `translateZ(${-bd/2}px) rotateY(${spineIsRight ? 90 : 270}deg)`; 
-                } else if (effectiveLandscape && !isDouble) {
-                    bookRotateY = 0;
-                    const moveX = isRTL ? -((targetScaleOpening * bw) / 2) : ((targetScaleOpening * bw) / 2);
-                    containerTransform = `translateX(${moveX}px) scale(${targetScaleOpening}) translateY(0px)`;
-                } else {
-                    bookRotateY = 0;
-                    containerTransform = `translateX(0px) scale(${targetScaleOpening}) translateY(0px)`;
-                }
-            }
-
             return (
-                <div className={`fixed inset-0 z-[1500] flex items-center justify-center transition-all duration-700 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'} ${isOpening ? 'bg-black backdrop-blur-none' : 'bg-black/80 backdrop-blur-xl'}`} onClick={onClose}>
+                <div className={`fixed inset-0 z-[1500] flex items-center justify-center bg-black/80 backdrop-blur-xl transition-opacity duration-500 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'}`} onClick={onClose}>
                     
                     {/* Flèches de navigation inter-pile */}
                     {hasPrev && (
-                        <button onClick={handlePrev} className={`absolute left-4 sm:left-8 md:left-12 xl:left-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95 ${isOpening ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100'}`}>
+                        <button onClick={handlePrev} className="absolute left-4 sm:left-8 md:left-12 xl:left-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95">
                             <IconChevronLeft width="32" height="32" />
                         </button>
                     )}
                     {hasNext && (
-                        <button onClick={handleNext} className={`absolute right-4 sm:right-8 md:right-12 xl:right-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95 ${isOpening ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100'}`}>
+                        <button onClick={handleNext} className="absolute right-4 sm:right-8 md:right-12 xl:right-24 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 bg-black/50 hover:bg-theme-600/80 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 hover:border-theme-400 transition-all z-[1600] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95">
                             <IconChevronRight width="32" height="32" />
                         </button>
                     )}
@@ -743,36 +707,19 @@
                                 <div id="inspect-book-container" className="relative cursor-grab active:cursor-grabbing group touch-none" 
                                     style={{ 
                                         width: `${bw}px`, height: `${bh}px`, 
-                                        animation: isOpening ? 'none' : 'artifactFloat 6s ease-in-out infinite', 
+                                        animation: 'artifactFloat 6s ease-in-out infinite', 
                                         transformStyle: 'preserve-3d', 
-                                        transform: containerTransform,
-                                        transition: isOpening ? 'transform 0.7s cubic-bezier(0.25, 1, 0.5, 1)' : 'none'
+                                        transform: `scale(${scale}) translateY(0px)`,
+                                        transition: 'transform 0.4s cubic-bezier(0.5, 0, 0.2, 1)'
                                     }} 
                                     onClick={handleReadClick}
                                     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
                                     
                                     {/* 3D Spin Wrapper */}
-                                    <div className="w-full h-full relative" style={{ 
-                                        transformStyle: 'preserve-3d', 
-                                        transform: `rotateX(${bookRotateX}deg) rotateY(${bookRotateY}deg)`,
-                                        transition: isOpening ? 'transform 0.7s cubic-bezier(0.25, 1, 0.5, 1)' : 'none'
-                                    }}>
+                                    <div className="w-full h-full relative" style={{ transformStyle: 'preserve-3d', transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)` }}>
                                         
-                                        {/* Intérieur du livre (Noir profond) qui s'estompe si on ouvre la jaquette complète */}
-                                        <div className="absolute inset-0 bg-black" style={{ 
-                                            transform: `translateZ(${bd/2 - 1}px)`, 
-                                            opacity: (isOpening && effectiveLandscape && isDouble) ? 0 : 1,
-                                            transition: 'opacity 0.4s ease',
-                                            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' 
-                                        }}></div>
-
                                         {/* Face Avant (Couverture Début) */}
-                                        <div className="absolute inset-0" style={{ 
-                                            transform: frontCoverTransform,
-                                            transformOrigin: frontOrigin,
-                                            transition: isOpening ? 'transform 0.7s cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
-                                            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' 
-                                        }}>
+                                        <div className="absolute inset-0" style={{ transform: `translateZ(${bd/2}px)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
                                             {isDouble ? (
                                                 <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosFront }}></div>
                                             ) : (
@@ -781,12 +728,7 @@
                                         </div>
 
                                         {/* Face Arrière (Couverture Fin) */}
-                                        <div className="absolute inset-0" style={{ 
-                                            transform: backCoverTransform,
-                                            transformOrigin: backOrigin,
-                                            transition: isOpening ? 'transform 0.7s cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
-                                            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' 
-                                        }}>
+                                        <div className="absolute inset-0" style={{ transform: `translateZ(${-bd/2}px) rotateY(180deg)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
                                             {isDouble ? (
                                                 <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosBack }}></div>
                                             ) : (
@@ -806,27 +748,17 @@
                                         </div>
 
                                         {/* Tranche Pages (Opposée) */}
-                                        <div className="absolute inset-y-0 bg-[#e8e4db]" style={{ 
-                                            width: `${bd}px`, left: spineIsRight ? 0 : 'auto', right: spineIsRight ? 'auto' : 0, 
-                                            transform: `translateX(${spineIsRight ? -bd/2 : bd/2}px) rotateY(${spineIsRight ? -90 : 90}deg)`,
-                                            opacity: (isOpening && effectiveLandscape && isDouble) ? 0 : 1, transition: 'opacity 0.4s ease'
-                                        }}>
+                                        <div className="absolute inset-y-0 bg-[#e8e4db]" style={{ width: `${bd}px`, left: spineIsRight ? 0 : 'auto', right: spineIsRight ? 'auto' : 0, transform: `translateX(${spineIsRight ? -bd/2 : bd/2}px) rotateY(${spineIsRight ? -90 : 90}deg)` }}>
                                             <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
                                         </div>
 
                                         {/* Tranche Haut (Pages) */}
-                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ 
-                                            height: `${bd}px`, top: 0, transform: `translateY(${-bd/2}px) rotateX(90deg)`,
-                                            opacity: (isOpening && effectiveLandscape && isDouble) ? 0 : 1, transition: 'opacity 0.4s ease'
-                                        }}>
+                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, top: 0, transform: `translateY(${-bd/2}px) rotateX(90deg)` }}>
                                             <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
                                         </div>
 
                                         {/* Tranche Bas (Pages) */}
-                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ 
-                                            height: `${bd}px`, bottom: 0, transform: `translateY(${bd/2}px) rotateX(-90deg)`,
-                                            opacity: (isOpening && effectiveLandscape && isDouble) ? 0 : 1, transition: 'opacity 0.4s ease'
-                                        }}>
+                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, bottom: 0, transform: `translateY(${bd/2}px) rotateX(-90deg)` }}>
                                             <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
                                         </div>
                                     </div>
@@ -836,7 +768,7 @@
                         </div>
 
                         {/* Méta-données & Boutons d'action */}
-                        <div className="flex flex-col items-center gap-6 animate-slide-up w-full z-30 mt-8" style={{ opacity: (trState === 'idle' && !isOpening) ? 1 : 0, pointerEvents: isOpening ? 'none' : 'auto', transition: 'all 0.3s ease' }}>
+                        <div className="flex flex-col items-center gap-6 animate-slide-up w-full z-30 mt-8" style={{ opacity: trState === 'idle' ? 1 : 0, transition: 'all 0.3s ease' }}>
                             <div className="text-center px-4">
                                 <span className="text-theme-400 font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2 block drop-shadow-md">
                                     {manga.group || "Volume Indépendant"}
@@ -2382,7 +2314,6 @@
                             hasNext={!!inspectorNext}
                             onPrev={() => { triggerHaptic(30); setInspectingManga(inspectorPrev); }}
                             onNext={() => { triggerHaptic(30); setInspectingManga(inspectorNext); }}
-                            effectiveLandscape={effectiveLandscape}
                         />
                     )}
 
