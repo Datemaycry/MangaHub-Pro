@@ -1102,6 +1102,30 @@
 
             const [activeGroupFilter, setActiveGroupFilter] = useState(null);
 
+            // NOUVEAU : Calcul dynamique du nombre d'étagères
+            const [shelfRowsCount, setShelfRowsCount] = useState(1);
+            useEffect(() => {
+                const updateRows = () => {
+                    const w = window.innerWidth;
+                    const h = window.innerHeight;
+                    // On reproduit le calcul CSS exact de l'épaisseur d'une tranche 
+                    const bookH = Math.max(160, Math.min(320, h * 0.28));
+                    const bookW = bookH * 0.95 * (24 / 320); 
+                    const availableW = w - 60; // Largeur de l'écran moins l'épaisseur des deux piliers
+                    
+                    // On sous-estime très légèrement (bookW + 1) par sécurité pour éviter un débordement invisible
+                    const itemsPerRow = Math.max(1, Math.floor(availableW / (bookW + 1)));
+                    
+                    // Calcul du nombre de rangées requises. Minimum 1 étagère.
+                    const neededRows = Math.ceil(libraryStructure.flattened.length / itemsPerRow);
+                    setShelfRowsCount(Math.max(1, neededRows));
+                };
+                
+                updateRows();
+                window.addEventListener('resize', updateRows);
+                return () => window.removeEventListener('resize', updateRows);
+            }, [libraryStructure.flattened.length]);
+
             return (
                 <div 
                     className="flex flex-col h-full w-full mx-auto relative animate-hub-enter"
@@ -1216,11 +1240,11 @@
                     </header>
                     
                     <main className="flex-1 flex flex-col overflow-hidden relative bg-black" style={{ paddingLeft: 'max(0px, env(safe-area-inset-left))', paddingRight: 'max(0px, env(safe-area-inset-right))' }}>
-                        {/* Auras d'arrière plan optimisées pour Ultra-Wide */}
+                        {/* Auras d'arrière plan optimisées : Flous réduits pour sauver le GPU mobile */}
                         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden opacity-60">
-                            <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[1200px] max-h-[1200px] bg-theme-600 rounded-full mix-blend-screen filter blur-[120px] md:blur-[250px] opacity-30 aura-blob-1 gpu-accelerated"></div>
-                            <div className="absolute bottom-[-10%] right-[-10%] w-[70vw] h-[70vw] max-w-[1500px] max-h-[1500px] bg-theme-800 rounded-full mix-blend-screen filter blur-[150px] md:blur-[300px] opacity-40 aura-blob-2 gpu-accelerated"></div>
-                            <div className="absolute top-[20%] right-[20%] w-[50vw] h-[50vw] max-w-[1000px] max-h-[1000px] bg-theme-400 rounded-full mix-blend-screen filter blur-[100px] md:blur-[200px] opacity-20 aura-blob-3 gpu-accelerated"></div>
+                            <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[1200px] max-h-[1200px] bg-theme-600 rounded-full mix-blend-screen filter blur-[60px] md:blur-[100px] opacity-30 aura-blob-1 gpu-accelerated"></div>
+                            <div className="absolute bottom-[-10%] right-[-10%] w-[70vw] h-[70vw] max-w-[1500px] max-h-[1500px] bg-theme-800 rounded-full mix-blend-screen filter blur-[80px] md:blur-[150px] opacity-40 aura-blob-2 gpu-accelerated"></div>
+                            <div className="absolute top-[20%] right-[20%] w-[50vw] h-[50vw] max-w-[1000px] max-h-[1000px] bg-theme-400 rounded-full mix-blend-screen filter blur-[50px] md:blur-[100px] opacity-20 aura-blob-3 gpu-accelerated"></div>
                         </div>
 
                         {/* Zone des Tags Déroulable */}
@@ -1236,20 +1260,20 @@
 
                         {/* LA BIBLIOTHÈQUE PHYSIQUE (ÉTAGÈRES CONTINUES) */}
                         <div className="relative flex-1 w-full min-h-0 z-10 bg-[#050810]" style={{
-                            '--row-pt': 'clamp(20px, 3vh, 40px)',       // Espace vide au-dessus du livre
-                            '--row-book-h': 'clamp(160px, 28vh, 320px)',// Hauteur maximale du livre
-                            '--board-h': 'clamp(25px, 4vh, 45px)',      // Épaisseur de l'étagère
+                            '--row-pt': 'clamp(15px, 2vh, 30px)',       // Espace vide au-dessus du livre
+                            '--row-book-h': 'clamp(180px, 32vh, 360px)',// Hauteur maximale du livre
+                            '--board-h': 'clamp(20px, 3vh, 35px)',      // Épaisseur de l'étagère
                             '--row-total': 'calc(var(--row-pt) + var(--row-book-h) + var(--board-h))', // Hauteur stricte d'une ligne
-                            '--pillar-w': 'clamp(15px, 3vw, 40px)'      // Épaisseur des montants verticaux
+                            '--pillar-w': 'clamp(12px, 2.5vw, 30px)'    // Épaisseur des montants verticaux
                         }}>
                             
-                            {/* --- MONTANTS VERTICAUX FIXES (Bords de la bibliothèque) --- */}
-                            <div className="absolute top-0 bottom-0 left-0 z-[25] pointer-events-none shadow-[10px_0_30px_rgba(0,0,0,0.9)] border-r border-white/10" style={{ width: 'var(--pillar-w)', ...(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).board }}>
+                            {/* --- MONTANTS VERTICAUX FIXES (Bords de la bibliothèque liés à l'écran) --- */}
+                            <div className="absolute top-0 bottom-0 left-0 z-[25] pointer-events-none shadow-[8px_0_20px_rgba(0,0,0,0.5)] border-r border-white/10 transition-all duration-500" style={{ width: 'var(--pillar-w)', ...(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).board }}>
                                 {(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).texture && <div className={`absolute inset-0 ${(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).texture} pointer-events-none`}></div>}
                                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent pointer-events-none"></div>
                             </div>
                             
-                            <div className="absolute top-0 bottom-0 right-0 z-[25] pointer-events-none shadow-[-10px_0_30px_rgba(0,0,0,0.9)] border-l border-white/10" style={{ width: 'var(--pillar-w)', ...(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).board }}>
+                            <div className="absolute top-0 bottom-0 right-0 z-[25] pointer-events-none shadow-[-8px_0_20px_rgba(0,0,0,0.5)] border-l border-white/10 transition-all duration-500" style={{ width: 'var(--pillar-w)', ...(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).board }}>
                                 {(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).texture && <div className={`absolute inset-0 ${(SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany).texture} pointer-events-none`}></div>}
                                 <div className="absolute inset-0 bg-gradient-to-l from-black/80 to-transparent pointer-events-none"></div>
                             </div>
@@ -1259,12 +1283,12 @@
                                 
                                 <div className="relative min-h-full w-full">
                                     
-                                    {/* --- DÉCORS DE FOND : Les 100 planches d'étagères générées automatiquement --- */}
+                                    {/* --- DÉCORS DE FOND : Dynamiques (Ne s'affichent que sous les mangas présents) --- */}
                                     <div className="absolute top-0 left-0 w-full flex flex-col pointer-events-none z-0">
-                                        {Array.from({ length: 100 }).map((_, i) => {
+                                        {Array.from({ length: shelfRowsCount }).map((_, i) => {
                                             const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
                                             return (
-                                                <div key={i} className="w-full flex-none flex flex-col justify-end" style={{ height: 'var(--row-total)' }}>
+                                                <div key={i} className="w-full flex-none flex flex-col justify-end transition-all duration-500" style={{ height: 'var(--row-total)' }}>
                                                     <div className="w-full shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 border-t border-white/5" style={{ height: 'var(--board-h)', ...themeDef.board }}>
                                                         {themeDef.texture && <div className={`absolute inset-0 ${themeDef.texture} pointer-events-none`}></div>}
                                                     </div>
@@ -1273,8 +1297,7 @@
                                         })}
                                     </div>
 
-                                    {/* --- CONTENU FOREGROUND : Les mangas et séparateurs --- */}
-                                    {/* flex-wrap permet le retour à la ligne magique. On ajoute un padding dynamique pour caler les livres entre les piliers. */}
+                                    {/* --- CONTENU FOREGROUND : Les mangas et séparateurs (Memoïsés pour performances max) --- */}
                                     <div className="relative z-10 flex flex-wrap content-start items-start justify-start w-full" style={{ paddingLeft: 'var(--pillar-w)', paddingRight: 'var(--pillar-w)', paddingBottom: 'max(6rem, env(safe-area-inset-bottom))' }}>
                                         {libraryStructure.flattened.map((item, i) => {
                                             const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
@@ -2468,7 +2491,7 @@
                             <div className="absolute inset-0 bg-black transition-opacity duration-[500ms] ease-[cubic-bezier(0.22,1,0.36,1)]" style={{ opacity: animatingManga.phase === 'expanding' ? 1 : 0 }} />
                             <div className="absolute overflow-hidden transition-[top,left,width,height,border-radius] duration-[500ms] ease-[cubic-bezier(0.22,1,0.36,1)] shadow-[0_30px_60px_rgba(0,0,0,0.9)]"
                                 style={{ top: animatingManga.phase === 'expanding' ? '0px' : animatingManga.rect.top + 'px', left: animatingManga.phase === 'expanding' ? '0px' : animatingManga.rect.left + 'px', width: animatingManga.phase === 'expanding' ? '100vw' : animatingManga.rect.width + 'px', height: animatingManga.phase === 'expanding' ? '100vh' : animatingManga.rect.height + 'px', borderRadius: animatingManga.phase === 'expanding' ? '0px' : '16px', transform: 'translateZ(0)' }}>
-                                <AnimatedCover file={animatingManga.manga.coverDouble || animatingManga.manga.coverStart || animatingManga.manga.cover} />
+                                <StackThumbnail file={animatingManga.manga.coverDouble || animatingManga.manga.coverStart || animatingManga.manga.cover} contain={true} />
                             </div>
                         </div>
                     )}
