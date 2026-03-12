@@ -1821,16 +1821,14 @@
                 }, 400);
             }, [currentManga, allSpreads, cursor]);
 
+            // --- EXPORT OPTIMISÉ (Prévention Crash RAM) ---
             const handleExport = async () => {
                 setLoading(true); setImportProgress("Préparation export JSON...");
                 try {
                     const db = await initDB();
-                    
-                    // On exécute les transactions l'une APRES l'autre pour éviter que le navigateur les ferme pour inactivité
                     const allMangasMeta = await new Promise(res => {
                         db.transaction(STORE_MANGAS, "readonly").objectStore(STORE_MANGAS).getAll().onsuccess = e => res(e.target.result);
                     });
-                    
                     const allPages = await new Promise(res => {
                         db.transaction(STORE_PAGES, "readonly").objectStore(STORE_PAGES).getAll().onsuccess = e => res(e.target.result);
                     });
@@ -1838,11 +1836,16 @@
                     const pagesMap = {};
                     allPages.forEach(p => pagesMap[p.id] = p.pages);
 
-                    const encodedMangas = [];
+                    const chunks = [];
+                    chunks.push("[\n");
+
                     for (let i = 0; i < allMangasMeta.length; i++) {
                         setImportProgress(`Compression... (${i+1}/${allMangasMeta.length})`);
+                        await new Promise(r => setTimeout(r, 10)); // Laisse l'UI respirer
+                        
                         const meta = allMangasMeta[i];
                         const fullManga = { ...meta, pages: pagesMap[meta.id] || [] };
+                        delete pagesMap[meta.id]; // Libère la RAM immédiatement
                         
                         const encodeFile = async (f) => {
                             if (!f) return f;
@@ -1860,17 +1863,24 @@
                         for(let p of fullManga.pages) encPages.push(await encodeFile(p));
                         fullManga.pages = encPages;
                         
-                        encodedMangas.push(fullManga);
+                        const jsonStr = JSON.stringify(fullManga);
+                        chunks.push(jsonStr);
+                        if (i < allMangasMeta.length - 1) chunks.push(",\n");
+                        
+                        await new Promise(r => setTimeout(r, 20)); // Force le vidage de la RAM (Garbage Collection)
                     }
                     
-                    const json = JSON.stringify(encodedMangas);
-                    const blob = new Blob([json], { type: "application/json" });
+                    chunks.push("\n]");
+                    setImportProgress("Génération du fichier...");
+                    await new Promise(r => setTimeout(r, 50));
+                    
+                    const blob = new Blob(chunks, { type: "application/json" });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a"); 
                     a.style.display = "none";
                     a.href = url; 
                     a.download = `MangaHub_Backup.json`; 
-                    document.body.appendChild(a); // Injection vitale pour forcer le navigateur
+                    document.body.appendChild(a); // Injection vitale pour forcer le navigateur mobile
                     a.click();
                     document.body.removeChild(a);
                     setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -1879,49 +1889,68 @@
                 } catch (err) { console.error(err); showToast("Erreur lors de l'export.", "error"); setLoading(false); setImportProgress(null); }
             };
 
+            // --- IMPORT OPTIMISÉ (Prévention Crash RAM iOS) ---
             const handleImport = async (e) => {
                 const file = e.target.files[0]; if (!file) return;
                 setLoading(true); setImportProgress("Lecture du fichier...");
                 try {
-                    const reader = new FileReader();
-                    reader.onload = async (ev) => {
-                        try {
-                            const data = JSON.parse(ev.target.result);
-                            const db = await initDB();
-                            
-                            for (let i = 0; i < data.length; i++) {
-                                setImportProgress(`Restauration... (${i+1}/${data.length})`);
-                                const item = data[i];
-                                
-                                const decodeFile = async (f) => {
-                                    if (!f || !f.data) return f;
-                                    const blob = await base64ToBlobAsync(f.data, f.type);
-                                    blob.name = f.name; 
-                                    return await serializeFile(blob);
-                                };
+                    await new Promise(r => setTimeout(r, 50)); // Force l'UI à afficher le loader
+                    
+                    let textData = await file.text(); // Plus rapide et propre que FileReader
+                    const data = JSON.parse(textData);
+                    textData = null; // SÉCURITÉ 1 : On détruit instantanément la chaîne de caractères géante
+                    
+                    const db = await initDB();
+                    const total = data.length;
+                    let processed = 0;
+                    
+                    // SÉCURITÉ 2 : On vide le tableau data au fur et à mesure avec shift()
+                    while (data.length > 0) {
+                        const item = data.shift(); // Extrait et supprime l'élément du tableau principal
+                        processed++;
+                        setImportProgress(`Restauration... (${processed}/${total})`);
+                        await new Promise(r => setTimeout(r, 10)); // Laisse l'UI s'actualiser
+                        
+                        const decodeFile = async (f) => {
+                            if (!f || !f.data) return f;
+                            const blob = await base64ToBlobAsync(f.data, f.type);
+                            blob.name = f.name; 
+                            f.data = null; // SÉCURITÉ 3 : Destruction du string base64 une fois converti
+                            return await serializeFile(blob);
+                        };
 
-                                const meta = { ...item }; delete meta.pages;
-                                if (meta.coverDouble) meta.coverDouble = await decodeFile(meta.coverDouble);
-                                if (meta.coverStart) meta.coverStart = await decodeFile(meta.coverStart);
-                                if (meta.coverEnd) meta.coverEnd = await decodeFile(meta.coverEnd);
-                                if (meta.cover) meta.cover = await decodeFile(meta.cover);
-                                meta.totalPages = item.pages ? item.pages.length : 0;
-                                
-                                const decPages = [];
-                                if(item.pages) { for(let p of item.pages) decPages.push(await decodeFile(p)); }
-                                
-                                await new Promise((res, rej) => {
-                                    const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
-                                    tx.objectStore(STORE_MANGAS).put(meta);
-                                    tx.objectStore(STORE_PAGES).put({id: meta.id, pages: decPages});
-                                    tx.oncomplete = res; tx.onerror = rej;
-                                });
+                        const meta = { ...item }; delete meta.pages;
+                        if (meta.coverDouble) meta.coverDouble = await decodeFile(meta.coverDouble);
+                        if (meta.coverStart) meta.coverStart = await decodeFile(meta.coverStart);
+                        if (meta.coverEnd) meta.coverEnd = await decodeFile(meta.coverEnd);
+                        if (meta.cover) meta.cover = await decodeFile(meta.cover);
+                        meta.totalPages = item.pages ? item.pages.length : 0;
+                        
+                        const decPages = [];
+                        if(item.pages) { 
+                            while (item.pages.length > 0) {
+                                const p = item.pages.shift();
+                                decPages.push(await decodeFile(p));
                             }
-                            setLoading(false); setImportProgress(null); setShowGlobalSettings(false); e.target.value = ''; loadMangas(); showToast("Restauration terminée !", "success");
-                        } catch(err) { console.error(err); showToast("Fichier invalide ou corrompu.", "error"); setLoading(false); setImportProgress(null); e.target.value = ''; }
-                    };
-                    reader.readAsText(file);
-                } catch(err) { console.error(err); setLoading(false); setImportProgress(null); e.target.value = ''; }
+                        }
+                        
+                        await new Promise((res, rej) => {
+                            const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
+                            tx.objectStore(STORE_MANGAS).put(meta);
+                            tx.objectStore(STORE_PAGES).put({id: meta.id, pages: decPages});
+                            tx.oncomplete = res; tx.onerror = rej;
+                        });
+                        
+                        // SÉCURITÉ 4 : Pause obligatoire pour laisser l'iPhone vider sa RAM avant le prochain manga
+                        await new Promise(r => setTimeout(r, 50));
+                    }
+                    
+                    setLoading(false); setImportProgress(null); setShowGlobalSettings(false); e.target.value = ''; loadMangas(); showToast("Restauration terminée !", "success");
+                } catch(err) { 
+                    console.error(err); 
+                    showToast("Fichier invalide ou saturant.", "error"); 
+                    setLoading(false); setImportProgress(null); e.target.value = ''; 
+                }
             };
 
             const handleExportArchive = async (manga, format, e) => {
