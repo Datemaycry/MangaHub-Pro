@@ -1295,10 +1295,12 @@
                                             const m = item.data;
                                             const isSelected = isSelectionMode && selectedMangas.has(m.id);
                                             const isFaded = activeGroupFilter && activeGroupFilter !== item.group;
+                                            const isHighlighted = activeGroupFilter === item.group;
                                             
                                             const isDouble = !!m.coverDouble;
                                             const mainCover = m.coverStart || m.cover;
                                             const wrapCoverUrl = getCachedUrl(m.coverDouble);
+                                            const frontCoverUrl = getCachedUrl(mainCover);
 
                                             const bw = MANGA_PROPS.faceW;
                                             const bh = MANGA_PROPS.h;
@@ -1315,21 +1317,40 @@
                                                         else setInspectingManga(m); 
                                                     }} className={`manga-cover-image relative flex-none shadow-[0_8px_10px_-4px_rgba(0,0,0,0.8)] cursor-pointer z-10 transition-all duration-300 rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : ''} ${isFaded ? 'opacity-30 grayscale-[0.8] brightness-50 pointer-events-none' : 'hover:-translate-y-4'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))` }}>
                                                         
-                                                        {/* Miniature Cover flottante (Masquée sur mobile, visible sur Desktop) */}
-                                                        <div className="hidden sm:block absolute bottom-[105%] left-1/2 -translate-x-1/2 mb-2 bg-black rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.9)] opacity-0 group-hover/book:opacity-100 transition-all duration-300 pointer-events-none scale-90 group-hover/book:scale-100 z-50 overflow-hidden border border-white/10 origin-bottom" style={{ height: '240px', width: `calc(240px * (${bw} / ${bh}))` }}>
-                                                            <StackThumbnail file={mainCover} contain={true} />
+                                                        {/* Bulle d'information au survol (Couverture + Métadonnées) - Apparaît à droite */}
+                                                        <div className="absolute bottom-2 left-[calc(100%+12px)] bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.3)] opacity-0 group-hover/book:opacity-100 transition-all duration-300 pointer-events-none scale-95 group-hover/book:scale-100 z-[200] overflow-hidden border border-white/10 flex flex-col w-[140px] sm:w-[180px] origin-bottom-left">
+                                                            <div className="relative w-full bg-black border-b border-white/10" style={{ aspectRatio: `${bw} / ${bh}` }}>
+                                                                <StackThumbnail file={mainCover} contain={true} />
+                                                            </div>
+                                                            <div className="p-3 sm:p-4 flex flex-col bg-gradient-to-b from-transparent to-black/60">
+                                                                <span className="text-[8px] sm:text-[10px] text-theme-400 font-black uppercase tracking-widest truncate mb-1">{item.group || "Indépendant"}</span>
+                                                                <span className="text-[10px] sm:text-xs text-white font-bold leading-snug line-clamp-3" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>{m.title}</span>
+                                                            </div>
                                                         </div>
                                                         
-                                                        {/* Contenu de la tranche (Nettoyé de tout assombrissement) */}
+                                                        {/* Contenu de la tranche */}
                                                         <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[2px] bg-[#0f172a]">
                                                             {isDouble && wrapCoverUrl ? (
                                                                 <div className="w-full h-full opacity-100 transition-opacity" style={{ backgroundImage: `url(${wrapCoverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: 'center center', backgroundRepeat: 'no-repeat' }}></div>
                                                             ) : (
-                                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                                    <span className={`${themeDef.text} group-hover/book:text-white font-black uppercase tracking-widest overflow-hidden whitespace-nowrap [text-overflow:clip] text-center leading-none transition-colors absolute`} style={{ transform: 'rotate(90deg)', textShadow: themeDef.textShadow, fontSize: 'clamp(9px, 1.6vh, 13px)', width: 'max-content', padding: '0 10px' }}>
-                                                                        {m.title}
-                                                                    </span>
-                                                                </div>
+                                                                <>
+                                                                    {/* 🎨 IDÉE 5 : TRANCHE DYNAMIQUE (Extraction de l'aura de couleur par flou CSS extrême) */}
+                                                                    {frontCoverUrl && <div className="absolute inset-0 scale-[1.5] opacity-90" style={{ backgroundImage: `url(${frontCoverUrl})`, backgroundSize: 'cover', backgroundPosition: 'left center', filter: 'blur(10px) saturate(1.5) brightness(0.6)' }}></div>}
+                                                                    
+                                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                                        <span className={`${themeDef.text} group-hover/book:text-white font-black uppercase tracking-widest overflow-hidden whitespace-nowrap [text-overflow:clip] text-center leading-none transition-colors absolute`} style={{ transform: 'rotate(90deg)', textShadow: '0px 2px 5px rgba(0,0,0,1), 0px 0px 2px rgba(0,0,0,0.8)', fontSize: 'clamp(9px, 1.6vh, 13px)', width: 'max-content', padding: '0 10px' }}>
+                                                                            {m.title}
+                                                                        </span>
+                                                                    </div>
+                                                                </>
+                                                            )}
+
+                                                            {/* 🔖 IDÉE 1 : INDICATEURS DE PROGRESSION (Ruban / Pastille dorée) */}
+                                                            {m.bookmark != null && !m.isFinished && (
+                                                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[35%] max-w-[16px] min-w-[6px] h-[22%] bg-theme-500 shadow-[0_4px_10px_rgba(0,0,0,0.9)] z-40 border-x border-b border-white/40" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%)', backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.2))' }}></div>
+                                                            )}
+                                                            {m.isFinished && (
+                                                                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[25%] max-w-[12px] min-w-[6px] aspect-square rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,1)] border border-white/80 z-40"></div>
                                                             )}
                                                         </div>
 
@@ -1474,15 +1495,15 @@
                             {nextChapter ? (
                                 <div className="animate-in w-full max-w-lg flex flex-col items-center">
                                     <div className="bg-black/80 border border-theme-600/40 shadow-[0_0_40px_rgba(var(--theme-rgb),0.3)] rounded-3xl p-6 w-full mb-8 flex items-center gap-6">
-                                        <div className="w-24 h-36 bg-black rounded-xl overflow-hidden flex-none shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] border border-theme-600/50"><StackThumbnail file={nextChapter.coverStart || nextChapter.coverDouble || nextChapter.cover} contain={nextChapter.isDoubleCover || !!nextChapter.coverDouble} /></div>
-                                        <div className="flex-1 overflow-hidden"><span className="text-xs text-theme-400 font-black uppercase tracking-widest block mb-2" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8)' }}>{currentManga?.group ? 'Suite de la Pile' : 'Suivant'}</span><h3 className="text-xl md:text-2xl text-white font-black truncate">{nextChapter.title}</h3></div>
-                                    </div>
-                                    <div className="flex gap-4 w-full">
-                                        <button onClick={() => { handleCloseReader(); setShowNextChapterOverlay(false); }} className="flex-1 py-5 bg-black text-theme-400 border border-theme-600/40 font-black text-xs rounded-2xl uppercase transition hover:bg-theme-950/30 hover:border-theme-500">Bibliothèque</button>
-                                        <button onClick={() => { if (currentManga && allSpreads) saveProgress(currentManga.id, cursor, true, allSpreads.length); setCurrentManga(nextChapter); setCursor(nextChapter.bookmark != null ? nextChapter.bookmark : (nextChapter.progress || 0)); markAsRead(nextChapter); setShowNextChapterOverlay(false); }} className="flex-[2] py-5 bg-theme-600 text-white font-black text-sm rounded-2xl uppercase transition shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] hover:scale-105">Lancer la suite</button>
-                                    </div>
+                                    <div className="w-24 h-36 bg-black rounded-xl overflow-hidden flex-none shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] border border-theme-600/50"><StackThumbnail file={nextChapter.coverStart || nextChapter.coverDouble || nextChapter.cover} contain={nextChapter.isDoubleCover || !!nextChapter.coverDouble} /></div>
+                                    <div className="flex-1 overflow-hidden"><span className="text-xs text-theme-400 font-black uppercase tracking-widest block mb-2" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8)' }}>{currentManga?.group ? 'Suite de la Pile' : 'Suivant'}</span><h3 className="text-xl md:text-2xl text-white font-black truncate">{nextChapter.title}</h3></div>
                                 </div>
-                            ) : (
+                                <div className="flex gap-4 w-full">
+                                    <button onClick={() => { handleCloseReader(); setShowNextChapterOverlay(false); }} className="flex-1 py-5 bg-black text-theme-400 border border-theme-600/40 font-black text-xs rounded-2xl uppercase transition hover:bg-theme-950/30 hover:border-theme-500">Bibliothèque</button>
+                                    <button onClick={() => { if (currentManga && allSpreads) saveProgress(currentManga.id, cursor, true, allSpreads.length); setCurrentManga(nextChapter); setCursor(nextChapter.bookmark != null ? nextChapter.bookmark : 0); markAsRead(nextChapter); setShowNextChapterOverlay(false); }} className="flex-[2] py-5 bg-theme-600 text-white font-black text-sm rounded-2xl uppercase transition shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] hover:scale-105">Lancer la suite</button>
+                                </div>
+                            </div>
+                        ) : (
                                 <div className="flex flex-col items-center gap-8 mt-6 w-full max-w-sm animate-in">
                                     <p className="text-theme-300/80 text-lg text-center font-bold">{currentManga?.group ? 'Vous avez terminé cette série pour le moment.' : 'Vous avez atteint la fin de la lecture de la sélection.'}</p>
                                     <button onClick={() => { handleCloseReader(); setShowNextChapterOverlay(false); }} className="w-full py-5 bg-theme-600/20 text-theme-300 border border-theme-500 font-black text-xs rounded-2xl uppercase transition shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)]">Retour à la bibliothèque</button>
@@ -1590,6 +1611,10 @@
             const [mangas, setMangas] = useState([]);
             const [search, setSearch] = useState("");
             const [currentManga, setCurrentManga] = useState(null);
+            
+            // ANTI-RACE CONDITION : On garde une trace instantanée du marque-page
+            const latestBookmarkRef = useRef(null);
+            
             const [currentPages, setCurrentPages] = useState([]);
             const [animatingManga, setAnimatingManga] = useState(null);
             const [isExitingReader, setIsExitingReader] = useState(false); 
@@ -1739,7 +1764,7 @@
             const handleOpenManga = useCallback((m, e, skipAnimation = false) => {
                 if (skipAnimation) {
                     setCurrentManga(m); 
-                    setCursor(m.bookmark != null ? m.bookmark : (m.progress || 0)); 
+                    setCursor(m.bookmark != null ? m.bookmark : 0); 
                     setView('reader'); 
                     setZenMode(true); 
                     markAsRead(m);
@@ -1773,7 +1798,7 @@
                     const timer = setTimeout(() => {
                         const m = animatingManga.manga;
                         setCurrentManga(m); 
-                        setCursor(m.bookmark != null ? m.bookmark : (m.progress || 0)); 
+                        setCursor(m.bookmark != null ? m.bookmark : 0); 
                         setView('reader'); 
                         setZenMode(true); 
                         markAsRead(m);
@@ -1939,15 +1964,30 @@
             const saveProgress = async (mangaId, newCursor, isFinished = false, currentTotalSpreads = 0) => {
                 const db = await initDB(); const tx = db.transaction(STORE_MANGAS, "readwrite");
                 const store = tx.objectStore(STORE_MANGAS);
+
+                // LE PETIT RAFRAÎCHISSEMENT MAGIQUE : Dès que la sauvegarde en base est finie, on met à jour la bibliothèque.
+                tx.oncomplete = () => { loadMangas(); };
+
                 store.get(mangaId).onsuccess = (e) => {
                     const manga = e.target.result;
                     if (manga) { 
                         manga.progress = newCursor; manga.isFinished = isFinished;
                         if (currentTotalSpreads > 0) manga.totalSpreads = currentTotalSpreads;
-                        if (isFinished) manga.bookmark = null; 
+                        
+                        // SÉCURITÉ : On force l'alignement avec la dernière action utilisateur instantanée
+                        if (latestBookmarkRef.current !== undefined) {
+                            manga.bookmark = latestBookmarkRef.current;
+                        }
+
+                        if (isFinished) {
+                            manga.bookmark = null; 
+                            latestBookmarkRef.current = null;
+                        }
+
                         manga.lastRead = Date.now(); store.put(manga); 
+                        
                         if (isFinished && currentManga && currentManga.id === mangaId && currentManga.bookmark != null) {
-                            setCurrentManga(prev => ({...prev, bookmark: null})); loadMangas();
+                            setCurrentManga(prev => ({...prev, bookmark: null}));
                         }
                     }
                 };
@@ -1973,10 +2013,18 @@
                 if (!currentManga) return;
                 triggerHaptic(50); 
                 const newBookmark = currentManga.bookmark === cursor ? null : cursor;
+                
+                // On met à jour la référence instantanément pour contrer la latence de la base de données
+                latestBookmarkRef.current = newBookmark;
                 setCurrentManga(prev => ({...prev, bookmark: newBookmark})); 
+                
                 const db = await initDB(); const tx = db.transaction(STORE_MANGAS, "readwrite");
                 tx.objectStore(STORE_MANGAS).get(currentManga.id).onsuccess = (ev) => {
-                    const manga = ev.target.result; if (manga) { manga.bookmark = newBookmark; tx.objectStore(STORE_MANGAS).put(manga); }
+                    const manga = ev.target.result; 
+                    if (manga) { 
+                        manga.bookmark = newBookmark; 
+                        tx.objectStore(STORE_MANGAS).put(manga); 
+                    }
                 };
                 tx.oncomplete = () => { loadMangas(); showToast(newBookmark !== null ? "Marque-page ajouté" : "Marque-page retiré", "info"); };
             };
