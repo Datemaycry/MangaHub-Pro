@@ -1760,25 +1760,34 @@
             }, [currentManga, currentPages, effectiveLandscape]);
 
             useEffect(() => {
-                if (view !== 'reader' || !allSpreads.length) {
-                    clearImageCache();
-                    return;
-                }
-                
+                // --- GESTION INTELLIGENTE DU CACHE (Anti-Disparition & Anti-OOM) ---
                 const neededFiles = new Set();
-                const addSpreadToNeeded = (index) => {
-                    const spread = allSpreads[index];
-                    if (spread) {
-                        if (spread.left) neededFiles.add(spread.left);
-                        if (spread.right) neededFiles.add(spread.right);
-                        if (spread.center) neededFiles.add(spread.center);
-                    }
-                };
+                
+                // 1. Toujours garder en vie les couvertures de l'étagère pour éviter qu'elles ne disparaissent
+                mangas.forEach(m => {
+                    if (m.coverDouble) neededFiles.add(m.coverDouble);
+                    if (m.coverStart) neededFiles.add(m.coverStart);
+                    if (m.coverEnd) neededFiles.add(m.coverEnd);
+                    if (m.cover) neededFiles.add(m.cover);
+                });
 
-                for (let i = cursor - 2; i <= cursor + 3; i++) addSpreadToNeeded(i);
-                if (prevCursor !== null) addSpreadToNeeded(prevCursor);
-                if (drag.targetCursor !== null) addSpreadToNeeded(drag.targetCursor);
+                // 2. Si on est dans le lecteur, on garde en mémoire les pages autour du curseur
+                if (view === 'reader' && allSpreads.length > 0) {
+                    const addSpreadToNeeded = (index) => {
+                        const spread = allSpreads[index];
+                        if (spread) {
+                            if (spread.left) neededFiles.add(spread.left);
+                            if (spread.right) neededFiles.add(spread.right);
+                            if (spread.center) neededFiles.add(spread.center);
+                        }
+                    };
 
+                    for (let i = cursor - 2; i <= cursor + 3; i++) addSpreadToNeeded(i);
+                    if (prevCursor !== null) addSpreadToNeeded(prevCursor);
+                    if (drag.targetCursor !== null) addSpreadToNeeded(drag.targetCursor);
+                }
+
+                // 3. On détruit uniquement les anciennes pages lues (pour sauver la RAM de l'iPhone)
                 for (const [file, url] of globalImageCache.entries()) {
                     if (!neededFiles.has(file)) {
                         URL.revokeObjectURL(url);
@@ -1786,16 +1795,19 @@
                     }
                 }
 
-                neededFiles.forEach(file => {
-                    if (!globalImageCache.has(file)) {
-                        const url = getCachedUrl(file);
-                        if (url) {
-                            const img = new Image();
-                            img.src = url; 
+                // 4. Préchargement fluide des images nécessaires
+                if (view === 'reader') {
+                    neededFiles.forEach(file => {
+                        if (!globalImageCache.has(file)) {
+                            const url = getCachedUrl(file);
+                            if (url) {
+                                const img = new Image();
+                                img.src = url; 
+                            }
                         }
-                    }
-                });
-            }, [cursor, prevCursor, drag.targetCursor, allSpreads, view]);
+                    });
+                }
+            }, [cursor, prevCursor, drag.targetCursor, allSpreads, view, mangas]);
 
             const handleOpenManga = useCallback((m, e, skipAnimation = false) => {
                 if (skipAnimation) {
