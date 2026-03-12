@@ -1309,7 +1309,7 @@
                                             const bgSizeSpine = `${(wrapTotalW / bd) * 100}% 100%`;
 
                                             return (
-                                                <div key={m.id} className="flex-none flex items-end relative group/book" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
+                                                <div key={m.id} className="flex-none flex items-end relative group/book hover:z-[100]" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
                                                     
                                                     {/* Tranche 3D du Livre - Ombre avec spread négatif (-4px) pour qu'elle ne bave plus sur les livres à gauche */}
                                                     <div onClick={(e) => { 
