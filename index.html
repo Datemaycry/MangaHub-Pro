@@ -281,6 +281,7 @@
         const IconCheck = (props) => <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>;
         const IconCheckSquare = (props) => <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>;
         const IconFilter = (props) => <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>;
+        const IconReverse = (props) => <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>;
 
         // --- SUB-COMPONENTS ---
         const ReaderImage = memo(({ file, className = "", style = {}, isBackground = false }) => {
@@ -596,14 +597,16 @@
             const [rotX, setRotX] = useState(0);
             const [isDragging, setIsDragging] = useState(false);
             const [autoSpin, setAutoSpin] = useState(true);
+            const [spinDirection, setSpinDirection] = useState(isRTL ? -1 : 1);
             const [isOpening, setIsOpening] = useState(false);
             const dragInfo = useRef({ startX: 0, startY: 0, initRotY: 0, initRotX: 0, hasDragged: false });
+            const spinTimeoutRef = useRef(null);
 
             useEffect(() => {
                 if (!autoSpin) return;
                 let animationFrameId;
                 let lastTime = performance.now();
-                const speedPerMs = (360 / 16000) * (isRTL ? -1 : 1); 
+                const speedPerMs = (360 / 16000) * spinDirection; 
                 
                 const animate = (time) => {
                     const delta = time - lastTime;
@@ -613,10 +616,11 @@
                 };
                 animationFrameId = requestAnimationFrame(animate);
                 return () => cancelAnimationFrame(animationFrameId);
-            }, [autoSpin, isRTL]);
+            }, [autoSpin, spinDirection]);
 
             const onPointerDown = (e) => {
                 setAutoSpin(false); 
+                if (spinTimeoutRef.current) clearTimeout(spinTimeoutRef.current);
                 setIsDragging(true);
                 dragInfo.current = { startX: e.clientX, startY: e.clientY, initRotY: rotY, initRotX: rotX, hasDragged: false };
                 e.currentTarget.setPointerCapture(e.pointerId);
@@ -636,6 +640,12 @@
             const onPointerUp = (e) => {
                 setIsDragging(false);
                 if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+                
+                // Reprise automatique de la rotation après inactivité
+                if (spinTimeoutRef.current) clearTimeout(spinTimeoutRef.current);
+                spinTimeoutRef.current = setTimeout(() => {
+                    setAutoSpin(true);
+                }, 1500);
             };
 
             const handleReadClick = (e) => {
@@ -807,6 +817,9 @@
                                 <div className="flex items-center gap-4 w-full mt-4">
                                     <button onClick={onClose} className="flex-1 py-5 rounded-2xl bg-white/5 text-white/70 font-black uppercase tracking-widest text-xs hover:bg-white/10 hover:text-white transition-colors border border-white/10 active:scale-95">
                                         Remettre
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); setSpinDirection(d => d * -1); setAutoSpin(true); }} className="w-14 h-[60px] rounded-2xl bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-white/10 active:scale-95 flex items-center justify-center flex-none" title="Inverser la rotation">
+                                        <IconReverse width="22" height="22" />
                                     </button>
                                     <button onClick={handleReadClick} className="flex-[2] py-5 rounded-2xl bg-theme-600 text-white font-black uppercase tracking-widest text-sm hover:bg-theme-500 transition-all shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),1)] hover:scale-105 active:scale-95 flex items-center justify-center gap-2 border border-theme-400">
                                         <IconPlay width="22" height="22" /> {manga.bookmark != null ? 'Continuer' : 'Ouvrir'}
@@ -1912,66 +1925,113 @@
                 } catch (err) { console.error(err); showToast("Erreur lors de l'export.", "error"); setLoading(false); setImportProgress(null); }
             };
 
-            // --- IMPORT OPTIMISÉ (Prévention Crash RAM iOS) ---
+            // --- IMPORT ULTRA-OPTIMISÉ (Streaming par morceaux / Prévention Crash OOM iOS) ---
             const handleImport = async (e) => {
                 const file = e.target.files[0]; if (!file) return;
-                setLoading(true); setImportProgress("Lecture du fichier...");
+                setLoading(true); setImportProgress("Initialisation...");
                 try {
-                    await new Promise(r => setTimeout(r, 50)); // Force l'UI à afficher le loader
-                    
-                    let textData = await file.text(); // Plus rapide et propre que FileReader
-                    const data = JSON.parse(textData);
-                    textData = null; // SÉCURITÉ 1 : On détruit instantanément la chaîne de caractères géante
-                    
+                    await new Promise(r => setTimeout(r, 50));
                     const db = await initDB();
-                    const total = data.length;
                     let processed = 0;
-                    
-                    // SÉCURITÉ 2 : On vide le tableau data au fur et à mesure avec shift()
-                    while (data.length > 0) {
-                        const item = data.shift(); // Extrait et supprime l'élément du tableau principal
-                        processed++;
-                        setImportProgress(`Restauration... (${processed}/${total})`);
-                        await new Promise(r => setTimeout(r, 10)); // Laisse l'UI s'actualiser
-                        
-                        const decodeFile = async (f) => {
-                            if (!f || !f.data) return f;
-                            const blob = await base64ToBlobAsync(f.data, f.type);
-                            blob.name = f.name; 
-                            f.data = null; // SÉCURITÉ 3 : Destruction du string base64 une fois converti
-                            return await serializeFile(blob);
-                        };
 
-                        const meta = { ...item }; delete meta.pages;
-                        if (meta.coverDouble) meta.coverDouble = await decodeFile(meta.coverDouble);
-                        if (meta.coverStart) meta.coverStart = await decodeFile(meta.coverStart);
-                        if (meta.coverEnd) meta.coverEnd = await decodeFile(meta.coverEnd);
-                        if (meta.cover) meta.cover = await decodeFile(meta.cover);
-                        meta.totalPages = item.pages ? item.pages.length : 0;
-                        
-                        const decPages = [];
-                        if(item.pages) { 
-                            while (item.pages.length > 0) {
-                                const p = item.pages.shift();
-                                decPages.push(await decodeFile(p));
-                            }
-                        }
-                        
-                        await new Promise((res, rej) => {
-                            const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
-                            tx.objectStore(STORE_MANGAS).put(meta);
-                            tx.objectStore(STORE_PAGES).put({id: meta.id, pages: decPages});
-                            tx.oncomplete = res; tx.onerror = rej;
+                    // Lecture du fichier par blocs de 2 Mo pour ne jamais saturer la RAM de l'iPhone
+                    const chunkSize = 1024 * 1024 * 2; 
+                    let offset = 0;
+                    let buffer = "";
+                    let depth = 0;
+                    let inString = false;
+                    let escapeNext = false;
+                    let objStart = -1;
+                    let scanIndex = 0;
+                    
+                    // TextDecoder en mode stream pour ne pas casser les caractères spéciaux (accents, emojis) entre deux blocs
+                    const decoder = new TextDecoder("utf-8");
+
+                    while (offset < file.size) {
+                        setImportProgress(`Analyse... ${Math.round((offset / file.size) * 100)}%`);
+                        await new Promise(r => setTimeout(r, 10));
+
+                        const sliceEnd = Math.min(offset + chunkSize, file.size);
+                        const chunkBuffer = await new Promise((res, rej) => {
+                            const reader = new FileReader();
+                            reader.onload = () => res(reader.result);
+                            reader.onerror = rej;
+                            reader.readAsArrayBuffer(file.slice(offset, sliceEnd));
                         });
                         
-                        // SÉCURITÉ 4 : Pause obligatoire pour laisser l'iPhone vider sa RAM avant le prochain manga
-                        await new Promise(r => setTimeout(r, 50));
+                        buffer += decoder.decode(chunkBuffer, { stream: true });
+                        offset = sliceEnd;
+
+                        while (scanIndex < buffer.length) {
+                            const char = buffer[scanIndex];
+                            if (escapeNext) {
+                                escapeNext = false;
+                            } else if (char === '\\') {
+                                escapeNext = true;
+                            } else if (char === '"') {
+                                inString = !inString;
+                            } else if (!inString) {
+                                if (char === '{') {
+                                    if (depth === 0) objStart = scanIndex;
+                                    depth++;
+                                } else if (char === '}') {
+                                    depth--;
+                                    if (depth === 0 && objStart !== -1) {
+                                        // Objet JSON complet (un Manga) trouvé dans le flux !
+                                        const objStr = buffer.substring(objStart, scanIndex + 1);
+                                        const item = JSON.parse(objStr);
+                                        
+                                        // On libère la RAM instantanément en coupant le texte lu du buffer
+                                        buffer = buffer.substring(scanIndex + 1);
+                                        scanIndex = -1; 
+                                        objStart = -1;
+                                        
+                                        processed++;
+                                        setImportProgress(`Restauration Manga ${processed}...`);
+                                        
+                                        const decodeFile = async (f) => {
+                                            if (!f || !f.data) return f;
+                                            const blob = await base64ToBlobAsync(f.data, f.type);
+                                            blob.name = f.name; 
+                                            f.data = null; // Nettoyage immédiat de la base64 géante
+                                            return await serializeFile(blob);
+                                        };
+
+                                        const meta = { ...item }; delete meta.pages;
+                                        if (meta.coverDouble) meta.coverDouble = await decodeFile(meta.coverDouble);
+                                        if (meta.coverStart) meta.coverStart = await decodeFile(meta.coverStart);
+                                        if (meta.coverEnd) meta.coverEnd = await decodeFile(meta.coverEnd);
+                                        if (meta.cover) meta.cover = await decodeFile(meta.cover);
+                                        meta.totalPages = item.pages ? item.pages.length : 0;
+                                        
+                                        const decPages = [];
+                                        if(item.pages) { 
+                                            while (item.pages.length > 0) {
+                                                const p = item.pages.shift();
+                                                decPages.push(await decodeFile(p));
+                                            }
+                                        }
+                                        
+                                        await new Promise((res, rej) => {
+                                            const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
+                                            tx.objectStore(STORE_MANGAS).put(meta);
+                                            tx.objectStore(STORE_PAGES).put({id: meta.id, pages: decPages});
+                                            tx.oncomplete = res; tx.onerror = rej;
+                                        });
+                                        
+                                        // Pause vitale pour que l'iPhone nettoie sa RAM avant de passer au suivant
+                                        await new Promise(r => setTimeout(r, 40));
+                                    }
+                                }
+                            }
+                            scanIndex++;
+                        }
                     }
                     
                     setLoading(false); setImportProgress(null); setShowGlobalSettings(false); e.target.value = ''; loadMangas(); showToast("Restauration terminée !", "success");
                 } catch(err) { 
                     console.error(err); 
-                    showToast("Fichier invalide ou saturant.", "error"); 
+                    showToast("Fichier invalide ou corrompu.", "error"); 
                     setLoading(false); setImportProgress(null); e.target.value = ''; 
                 }
             };
