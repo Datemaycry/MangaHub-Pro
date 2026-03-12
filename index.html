@@ -1450,8 +1450,8 @@
                                 {isLandscape ? <IconSinglePage width="24" height="24" /> : <IconDoublePage width="24" height="24" />}
                             </button>
 
-                            <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="hidden sm:flex bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl active:scale-95 transition items-center justify-center border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] text-theme-400 hover:text-theme-300 hover:bg-theme-900/30" title="Plein Écran (F)">
-                                <IconMaximize />
+                            <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="flex bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl active:scale-95 transition items-center justify-center border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] text-theme-400 hover:text-theme-300 hover:bg-theme-900/30" title="Plein Écran (F)">
+                                <IconMaximize width="24" height="24" />
                             </button>
 
                             <button onClick={toggleBookmark} className={`bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl active:scale-95 transition flex items-center justify-center border shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] ${currentManga?.bookmark === cursor ? 'text-theme-300 border-theme-400 bg-theme-900/40' : 'text-theme-400 border-theme-600/40 hover:text-theme-300 hover:bg-theme-900/30'}`} title={currentManga?.bookmark === cursor ? "Retirer le marque-page" : "Placer un marque-page ici"}>
