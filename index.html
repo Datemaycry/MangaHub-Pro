@@ -134,8 +134,23 @@
     <script type="text/babel">
         window.addEventListener('touchmove', function(e) { 
             if (window.visualViewport && window.visualViewport.scale > 1.05) return;
-            if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'range') return;
-            if (e.target.closest('.custom-scrollbar') === null && e.target.closest('.shelf-scroll') === null) e.preventDefault(); 
+            
+            // SÉCURITÉ APPLE PENCIL : Le stylet tremble naturellement. 
+            // Si on bloque un micro-mouvement, Safari annule le clic !
+            if (e.target && e.target.closest) {
+                // On exempte tous les éléments interactifs pour laisser passer le clic
+                if (e.target.closest('button, label, input, select, textarea, .manga-cover-image')) {
+                    return;
+                }
+                // On exempte aussi les fonds noirs des modales pour pouvoir cliquer à côté et les fermer
+                if (e.target.classList && e.target.classList.contains('fixed') && e.target.classList.contains('inset-0')) {
+                    return;
+                }
+            }
+            
+            if (e.target && e.target.closest('.custom-scrollbar') === null && e.target.closest('.shelf-scroll') === null) {
+                e.preventDefault(); 
+            }
         }, {passive: false});
         MobileDragDrop.polyfill({ holdToDrag: 250 });
 
@@ -1110,7 +1125,8 @@
             showTags, setShowTags, activeTags, setActiveTags, libraryStructure,
             continueReadingManga, getProgressPercent, setActiveCardMenu,
             isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode, 
-            setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga
+            setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga,
+            focusedMangaId
         }) => {
 
             const [activeGroupFilter, setActiveGroupFilter] = useState(null);
@@ -2389,9 +2405,11 @@
 
             const handlePointerDown = (e) => {
                 if (showNextChapterOverlay || prevCursor !== null) return;
+                if (e.button && e.button !== 0) return; // Ignore le clic droit
                 if (e.target.tagName?.toLowerCase() === 'input' || e.target.closest('button')) return;
                 if (window.visualViewport && window.visualViewport.scale > 1.05) return;
-                e.target.setPointerCapture(e.pointerId); setDrag({ active: true, startX: e.clientX, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false });
+                if (e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId);
+                setDrag({ active: true, startX: e.clientX, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false });
             };
 
             const handlePointerMove = (e) => {
@@ -2414,7 +2432,9 @@
             const handlePointerUp = (e) => {
                 if (dragRaf.current) cancelAnimationFrame(dragRaf.current);
                 if (!drag.active || !allSpreads) return;
-                if (e.target.hasPointerCapture(e.pointerId)) e.target.releasePointerCapture(e.pointerId);
+                if (e.target.hasPointerCapture && e.target.hasPointerCapture(e.pointerId)) {
+                    e.target.releasePointerCapture(e.pointerId);
+                }
 
                 const isClick = Math.abs(drag.diffX) < 10;
                 if (isClick) {
