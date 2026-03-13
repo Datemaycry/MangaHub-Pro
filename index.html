@@ -1885,7 +1885,7 @@
                 }, 400);
             }, [currentManga, allSpreads, cursor]);
 
-            // --- EXPORT OPTIMISÉ (Prévention Crash RAM) ---
+            // --- EXPORT OPTIMISÉ (Prévention Crash RAM iOS) ---
             const handleExport = async () => {
                 setLoading(true); setImportProgress("Préparation export JSON...");
                 try {
@@ -1901,15 +1901,16 @@
                     allPages.forEach(p => pagesMap[p.id] = p.pages);
 
                     const chunks = [];
-                    chunks.push("[\n");
+                    // Astuce iOS : On push des "Blobs" de petits textes au lieu d'une méga-chaîne en RAM.
+                    chunks.push(new Blob(["[\n"], { type: "application/json" }));
 
                     for (let i = 0; i < allMangasMeta.length; i++) {
-                        setImportProgress(`Compression... (${i+1}/${allMangasMeta.length})`);
-                        await new Promise(r => setTimeout(r, 10)); // Laisse l'UI respirer
+                        setImportProgress(`Compression Manga (${i+1}/${allMangasMeta.length})...`);
+                        await new Promise(r => setTimeout(r, 10)); 
                         
                         const meta = allMangasMeta[i];
-                        const fullManga = { ...meta, pages: pagesMap[meta.id] || [] };
-                        delete pagesMap[meta.id]; // Libère la RAM immédiatement
+                        const rawPages = pagesMap[meta.id] || [];
+                        delete pagesMap[meta.id]; // Libération immédiate
                         
                         const encodeFile = async (f) => {
                             if (!f) return f;
@@ -1918,33 +1919,44 @@
                             return { name: blob.name || 'image.jpg', type: blob.type || 'image/jpeg', data: await blobToBase64Async(blob) };
                         };
                         
-                        if (fullManga.coverDouble) fullManga.coverDouble = await encodeFile(fullManga.coverDouble);
-                        if (fullManga.coverStart) fullManga.coverStart = await encodeFile(fullManga.coverStart);
-                        if (fullManga.coverEnd) fullManga.coverEnd = await encodeFile(fullManga.coverEnd);
-                        if (fullManga.cover) fullManga.cover = await encodeFile(fullManga.cover);
+                        const metaToEncode = { ...meta };
+                        if (metaToEncode.coverDouble) metaToEncode.coverDouble = await encodeFile(metaToEncode.coverDouble);
+                        if (metaToEncode.coverStart) metaToEncode.coverStart = await encodeFile(metaToEncode.coverStart);
+                        if (metaToEncode.coverEnd) metaToEncode.coverEnd = await encodeFile(metaToEncode.coverEnd);
+                        if (metaToEncode.cover) metaToEncode.cover = await encodeFile(metaToEncode.cover);
                         
-                        const encPages = [];
-                        for(let p of fullManga.pages) encPages.push(await encodeFile(p));
-                        fullManga.pages = encPages;
+                        // Sérialisation intelligente : on sépare les métadonnées des pages pour ne jamais tout avoir en RAM
+                        const metaStr = JSON.stringify(metaToEncode);
+                        const metaStrSliced = metaStr.slice(0, -1); // Enlève la '}' finale
+                        chunks.push(new Blob([metaStrSliced + `,"pages":[`], { type: "application/json" }));
                         
-                        const jsonStr = JSON.stringify(fullManga);
-                        chunks.push(jsonStr);
-                        if (i < allMangasMeta.length - 1) chunks.push(",\n");
+                        for (let pIdx = 0; pIdx < rawPages.length; pIdx++) {
+                            if (pIdx % 10 === 0) setImportProgress(`Compression Manga (${i+1}/${allMangasMeta.length}) - Page ${pIdx}...`);
+                            
+                            const encodedPage = await encodeFile(rawPages[pIdx]);
+                            const pageStr = JSON.stringify(encodedPage);
+                            
+                            chunks.push(new Blob([pageStr + (pIdx < rawPages.length - 1 ? "," : "")], { type: "application/json" }));
+                            rawPages[pIdx] = null; // Détruit la page de la RAM
+                            
+                            if (pIdx % 5 === 0) await new Promise(r => setTimeout(r, 5)); // Laisse l'iPhone respirer
+                        }
                         
-                        await new Promise(r => setTimeout(r, 20)); // Force le vidage de la RAM (Garbage Collection)
+                        chunks.push(new Blob(["]}" + (i < allMangasMeta.length - 1 ? ",\n" : "")], { type: "application/json" }));
+                        await new Promise(r => setTimeout(r, 20)); // Force le vidage (Garbage Collection)
                     }
                     
-                    chunks.push("\n]");
-                    setImportProgress("Génération du fichier...");
+                    chunks.push(new Blob(["\n]"], { type: "application/json" }));
+                    setImportProgress("Assemblage final...");
                     await new Promise(r => setTimeout(r, 50));
                     
-                    const blob = new Blob(chunks, { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
+                    const finalBlob = new Blob(chunks, { type: "application/json" });
+                    const url = URL.createObjectURL(finalBlob);
                     const a = document.createElement("a"); 
                     a.style.display = "none";
                     a.href = url; 
                     a.download = `MangaHub_Backup.json`; 
-                    document.body.appendChild(a); // Injection vitale pour forcer le navigateur mobile
+                    document.body.appendChild(a); 
                     a.click();
                     document.body.removeChild(a);
                     setTimeout(() => URL.revokeObjectURL(url), 1000);
