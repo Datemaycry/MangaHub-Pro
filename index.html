@@ -97,7 +97,7 @@
     .animate-edge-glow-left { animation: edgeGlow 0.4s ease-out forwards; left: 0; background: linear-gradient(to right, rgba(255,255,255,0.15), transparent); }
     .animate-edge-glow-right { animation: edgeGlow 0.4s ease-out forwards; right: 0; background: linear-gradient(to left, rgba(255,255,255,0.15), transparent); }
 
-    .custom-range { -webkit-appearance: none; outline: none; background: #334155; }
+    .custom-range { -webkit-appearance: none; outline: none; background: linear-gradient(to right, rgba(var(--theme-rgb), 0.6) var(--range-pct, 0%), #334155 var(--range-pct, 0%)); border-radius: 4px; }
     .custom-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; border-radius: 50%; background: rgb(var(--theme-500)); cursor: pointer; box-shadow: 0 0 20px rgba(var(--theme-rgb), 0.8); border: 3px solid white; transition: transform 0.1s; }
     .custom-range::-webkit-slider-thumb:hover { transform: scale(1.15); }
 
@@ -130,6 +130,10 @@
     .animate-reader-enter { animation: readerEnter 0.4s ease-out forwards; }
     @keyframes hubEnter { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
     .animate-hub-enter { animation: hubEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    @keyframes tagPop { from { opacity: 0; transform: scale(0.8) translateY(4px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .animate-tag-pop { animation: tagPop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+    @keyframes bookmarkBounce { 0% { transform: translateX(-50%) scaleY(0); } 60% { transform: translateX(-50%) scaleY(1.2); } 80% { transform: translateX(-50%) scaleY(0.9); } 100% { transform: translateX(-50%) scaleY(1); } }
+    .animate-bookmark-in { animation: bookmarkBounce 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards; transform-origin: top center; }
 </style>
 ```
 
@@ -1049,11 +1053,9 @@
         animatingManga, search, setSearch, deferredPrompt, handleInstallApp, showBookmarksOnly,
         setShowBookmarksOnly, setIsAdding, showGlobalSettings, setShowGlobalSettings, appTheme,
         setAppTheme, shelfTheme, setShelfTheme, handleExport, handleImport, setPurgeConfirm,
-        showTags, setShowTags, activeTags, setActiveTags, libraryStructure,
-        continueReadingManga, getProgressPercent, setActiveCardMenu,
-        isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode, 
-        setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga,
-        focusedMangaId
+        showTags, setShowTags, activeTags, setActiveTags, libraryStructure, setActiveCardMenu,
+        isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode,
+        setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga
     }) => {
 
         // Détection iOS Safari hors mode standalone (pas encore installée)
@@ -1205,10 +1207,10 @@
 
                     {showTags && libraryStructure.allAvailableTags.length > 0 && !isSelectionMode && (
                         <div className="flex-none flex items-center gap-2 overflow-x-auto pb-4 pt-4 px-6 lg:px-10 custom-scrollbar relative z-20 animate-in bg-gradient-to-b from-black/80 to-transparent">
-                            <button onClick={() => setActiveTags([])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${activeTags.length === 0 ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`}>TOUS</button>
-                            {libraryStructure.allAvailableTags.map(t => {
+                            <button onClick={() => setActiveTags([])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all animate-tag-pop ${activeTags.length === 0 ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`}>TOUS</button>
+                            {libraryStructure.allAvailableTags.map((t, idx) => {
                                 const isActive = activeTags.includes(t);
-                                return (<button key={t} onClick={() => setActiveTags(prev => isActive ? prev.filter(x => x !== t) : [...prev, t])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isActive ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`}>{t}</button>)
+                                return (<button key={t} onClick={() => setActiveTags(prev => isActive ? prev.filter(x => x !== t) : [...prev, t])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all animate-tag-pop ${isActive ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`} style={{ animationDelay: `${idx * 30}ms` }}>{t}</button>)
                             })}
                         </div>
                     )}
@@ -1291,10 +1293,10 @@
                                                 <div onClick={(e) => { 
                                                     if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); }
                                                     else setInspectingManga(m); 
-                                                }} className={`manga-cover-image relative flex-none shadow-[0_8px_10px_-4px_rgba(0,0,0,0.8)] cursor-pointer z-10 transition-all duration-300 rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : 'hover:-translate-y-4'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))` }}>
+                                                }} className={`manga-cover-image relative flex-none cursor-pointer z-10 rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : 'hover:-translate-y-5 hover:shadow-[0_20px_30px_-8px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.15)]'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))`, boxShadow: '0 8px 10px -4px rgba(0,0,0,0.8)', transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                                                     
                                                     {/* Bulle d'information au survol (Couverture + Métadonnées) - Apparaît à droite */}
-                                                    <div className="absolute bottom-2 left-[calc(100%+12px)] bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.3)] opacity-0 group-hover/book:opacity-100 transition-all duration-300 pointer-events-none scale-95 group-hover/book:scale-100 z-[200] overflow-hidden border border-white/10 flex flex-col w-[140px] sm:w-[180px] origin-bottom-left">
+                                                    <div className="absolute bottom-2 left-[calc(100%+12px)] bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.3)] opacity-0 group-hover/book:opacity-100 group-hover/book:translate-y-0 pointer-events-none z-[200] overflow-hidden border border-white/10 flex flex-col w-[140px] sm:w-[180px] origin-bottom-left translate-y-2" style={{ transition: 'opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1)' }}>
                                                         <div className="relative w-full bg-black border-b border-white/10" style={{ aspectRatio: `${bw} / ${bh}` }}>
                                                             <StackThumbnail file={mainCover} contain={true} />
                                                         </div>
@@ -1323,7 +1325,7 @@
 
                                                         {/* 🔖 IDÉE 1 : INDICATEURS DE PROGRESSION (Ruban / Pastille dorée) */}
                                                         {m.bookmark != null && !m.isFinished && (
-                                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[35%] max-w-[16px] min-w-[6px] h-[22%] bg-theme-500 shadow-[0_4px_10px_rgba(0,0,0,0.9)] z-40 border-x border-b border-white/40" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%)', backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.2))' }}></div>
+                                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[35%] max-w-[16px] min-w-[6px] h-[22%] bg-theme-500 shadow-[0_4px_10px_rgba(0,0,0,0.9)] z-40 border-x border-b border-white/40 animate-bookmark-in" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%)', backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.2))' }}></div>
                                                         )}
                                                         {m.isFinished && (
                                                             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[25%] max-w-[12px] min-w-[6px] aspect-square rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,1)] border border-white/80 z-40"></div>
@@ -1454,7 +1456,14 @@
                     onWheel={handleWheel}
                 >
                     {currentPages.length === 0 && currentManga ? (
-                        <div className="w-16 h-16 border-4 border-theme-500 border-t-transparent rounded-full animate-spin"></div>
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="relative w-16 h-16">
+                                <div className="absolute inset-0 rounded-full border-4 border-theme-900/40"></div>
+                                <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-theme-400 animate-spin" style={{ filter: 'drop-shadow(0 0 8px rgba(var(--theme-rgb),0.8))' }}></div>
+                                <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-theme-600 animate-spin" style={{ animationDuration: '0.6s', animationDirection: 'reverse' }}></div>
+                            </div>
+                            <span className="text-[10px] text-theme-400 font-black uppercase tracking-widest animate-pulse">Chargement...</span>
+                        </div>
                     ) : (
                         <>
                             <div className="absolute inset-0 z-10 flex justify-center items-center gpu-accelerated pointer-events-none">
@@ -1550,11 +1559,14 @@
                             </div>
 
                             <input type="range" min="0" max={maxVal} value={previewCursor}
+                                onTouchStart={(e) => e.stopPropagation()}
+                                onTouchMove={(e) => e.stopPropagation()}
+                                onTouchEnd={(e) => e.stopPropagation()}
                                 onPointerDown={(e) => { e.stopPropagation(); setIsSliderActive(true); }}
-                                onPointerUp={(e) => { e.stopPropagation(); setIsSliderActive(false); handleSetCursor(Number(e.target.value)); }}
+                                onPointerUp={(e) => { e.stopPropagation(); setIsSliderActive(false); const val = Number(e.target.value); if (val !== cursor) handleSetCursor(val); }}
                                 onChange={(e) => setPreviewCursor(Number(e.target.value))}
-                                className="w-full h-2 rounded-lg appearance-none cursor-pointer custom-range z-10 relative" 
-                                style={{ touchAction: 'none' }}
+                                className="w-full h-2 rounded-lg appearance-none cursor-pointer custom-range z-10 relative"
+                                style={{ touchAction: 'none', '--range-pct': `${percent}%` }}
                             />
                         </div>
 
@@ -1865,13 +1877,6 @@
                     const rawPages = pagesMap[meta.id] || [];
                     delete pagesMap[meta.id]; // Libération immédiate
                     
-                    const encodeFile = async (f) => {
-                        if (!f) return f;
-                        const blob = deserializeFile(f);
-                        if (!blob) return null;
-                        return { name: blob.name || 'image.jpg', type: blob.type || 'image/jpeg', data: await blobToBase64Async(blob) };
-                    };
-                    
                     const metaToEncode = { ...meta };
                     if (metaToEncode.coverDouble) metaToEncode.coverDouble = await encodeFile(metaToEncode.coverDouble);
                     if (metaToEncode.coverStart) metaToEncode.coverStart = await encodeFile(metaToEncode.coverStart);
@@ -2019,10 +2024,15 @@
                     const ext = fileObj.type === 'image/png' ? 'png' : fileObj.type === 'image/webp' ? 'webp' : 'jpg';
                     const filename = `${nameBase}.${ext}`; zip.file(filename, fileObj); return filename;
                 };
-                if (deserializeFile(manga.coverDouble)) metadata.coverDouble = addFileToZip(deserializeFile(manga.coverDouble), "cover_double");
-                if (deserializeFile(manga.coverStart)) metadata.coverStart = addFileToZip(deserializeFile(manga.coverStart), "cover_start");
-                if (deserializeFile(manga.coverEnd)) metadata.coverEnd = addFileToZip(deserializeFile(manga.coverEnd), "cover_end");
-                const fallbackCover = deserializeFile(manga.coverDouble || manga.coverStart || manga.cover); if (fallbackCover) addFileToZip(fallbackCover, "000_cover_preview"); 
+                const addCoverToZip = (raw, nameBase) => {
+                    const blob = deserializeFile(raw);
+                    return blob ? addFileToZip(blob, nameBase) : null;
+                };
+                if (manga.coverDouble) metadata.coverDouble = addCoverToZip(manga.coverDouble, "cover_double");
+                if (manga.coverStart)  metadata.coverStart  = addCoverToZip(manga.coverStart,  "cover_start");
+                if (manga.coverEnd)    metadata.coverEnd    = addCoverToZip(manga.coverEnd,    "cover_end");
+                const fallbackCover = deserializeFile(manga.coverDouble || manga.coverStart || manga.cover);
+                if (fallbackCover) addFileToZip(fallbackCover, "000_cover_preview");
                 if (fullPages.length > 0) { fullPages.forEach((p, i) => { const filename = addFileToZip(p, `page_${String(i+1).padStart(3,'0')}`); if (filename) metadata.pages.push(filename); }); }
                 
                 zip.file("metadata.json", JSON.stringify(metadata, null, 2));
@@ -2041,13 +2051,18 @@
             } catch (error) { console.error(error); showToast(`Erreur lors de l'export ${format.toUpperCase()}.`, "error"); setLoading(false); setImportProgress(null); }
         };
 
-        const saveProgress = async (mangaId, newCursor, isFinished = false, currentTotalSpreads = 0) => {
-            const db = await initDB(); const tx = db.transaction(STORE_MANGAS, "readwrite");
+        const encodeFile = useCallback(async (f) => {
+            if (!f) return f;
+            const blob = deserializeFile(f);
+            if (!blob) return null;
+            return { name: blob.name || 'image.jpg', type: blob.type || 'image/jpeg', data: await blobToBase64Async(blob) };
+        }, []);
+
+        const saveProgress = useCallback(async (mangaId, newCursor, isFinished = false, currentTotalSpreads = 0) => {
+            const db = await initDB();
+            const tx = db.transaction(STORE_MANGAS, "readwrite");
             const store = tx.objectStore(STORE_MANGAS);
-
-            // LE PETIT RAFRAÎCHISSEMENT MAGIQUE : Dès que la sauvegarde en base est finie, on met à jour la bibliothèque.
             tx.oncomplete = () => { loadMangas(); };
-
             store.get(mangaId).onsuccess = (e) => {
                 const manga = e.target.result;
                 if (manga) {
@@ -2061,7 +2076,7 @@
                     }
                 }
             };
-        };
+        }, [currentManga, loadMangas]);
 
         useEffect(() => {
             if (view === 'reader' && currentManga && allSpreads) {
@@ -2070,13 +2085,16 @@
             }
         }, [cursor, currentManga, view, allSpreads]);
 
-        const markAsRead = async (manga) => {
-            const db = await initDB(); const tx = db.transaction(STORE_MANGAS, "readwrite");
+        const markAsRead = useCallback(async (manga) => {
+            // On met juste à jour lastRead sans recharger toute la bibliothèque
+            // (le rechargement se fera à la fermeture du lecteur)
+            const db = await initDB();
+            const tx = db.transaction(STORE_MANGAS, "readwrite");
             tx.objectStore(STORE_MANGAS).get(manga.id).onsuccess = (e) => {
-                const dbManga = e.target.result;
-                if (dbManga) { dbManga.lastRead = Date.now(); tx.objectStore(STORE_MANGAS).put(dbManga); loadMangas(); }
+                const m = e.target.result;
+                if (m) { m.lastRead = Date.now(); tx.objectStore(STORE_MANGAS).put(m); }
             };
-        };
+        }, []);
         
         const toggleBookmark = async (e) => {
             if (e && e.stopPropagation) e.stopPropagation();
@@ -2247,11 +2265,11 @@
             prevSpreadsRef.current = allSpreads;
         }, [effectiveLandscape, allSpreads, currentManga, cursor]);
 
-        const handleSetCursor = (newVal, fromTap = null) => {
+        const handleSetCursor = useCallback((newVal, fromTap = null) => {
             if (newVal === cursor) return;
             if (fromTap) { setEdgeGlow(fromTap); setTimeout(() => setEdgeGlow(null), 400); }
-            setPrevCursor(cursor); setSlideDir(newVal > cursor ? 'next' : 'prev'); setCursor(newVal); setShowNextChapterOverlay(false); setTimeout(() => setPrevCursor(null), 1000); 
-        };
+            setPrevCursor(cursor); setSlideDir(newVal > cursor ? 'next' : 'prev'); setCursor(newVal); setShowNextChapterOverlay(false); setTimeout(() => setPrevCursor(null), 1000);
+        }, [cursor]);
 
         const toggleFullscreen = async () => {
             if (!document.fullscreenElement) {
@@ -2389,13 +2407,6 @@
             }
         };
 
-        const continueReadingManga = useMemo(() => {
-            if (search || activeTags.length > 0 || showBookmarksOnly || isSelectionMode) return null;
-            const inProgress = mangas.filter(m => m.progress > 0 && !m.isFinished);
-            if (inProgress.length === 0) return null;
-            return inProgress.sort((a, b) => (b.lastRead || 0) - (a.lastRead || 0))[0];
-        }, [mangas, search, activeTags, showBookmarksOnly, isSelectionMode]);
-
         const nextChapter = useMemo(() => {
             if (!currentManga) return null;
             const ctx = currentManga.group
@@ -2429,8 +2440,8 @@
                         showBookmarksOnly={showBookmarksOnly} setShowBookmarksOnly={setShowBookmarksOnly} setIsAdding={setIsAdding} showGlobalSettings={showGlobalSettings}
                         setShowGlobalSettings={setShowGlobalSettings} appTheme={appTheme} setAppTheme={setAppTheme} shelfTheme={shelfTheme} setShelfTheme={setShelfTheme}
                         handleExport={handleExport} handleImport={handleImport} setPurgeConfirm={setPurgeConfirm} showTags={showTags}
-                        setShowTags={setShowTags} activeTags={activeTags} setActiveTags={setActiveTags} libraryStructure={libraryStructure} continueReadingManga={continueReadingManga}
-                        handleOpenManga={handleOpenManga} getProgressPercent={getProgressPercent} setActiveCardMenu={setActiveCardMenu}
+                        setShowTags={setShowTags} activeTags={activeTags} setActiveTags={setActiveTags} libraryStructure={libraryStructure}
+                        handleOpenManga={handleOpenManga} setActiveCardMenu={setActiveCardMenu}
                         isSelectionMode={isSelectionMode} selectedMangas={selectedMangas}
                         toggleMangaSelection={toggleMangaSelection} toggleSelectionMode={toggleSelectionMode} setShowBatchEditModal={setShowBatchEditModal}
                         setBatchDeleteConfirm={setBatchDeleteConfirm} setInspectingManga={setInspectingManga}
