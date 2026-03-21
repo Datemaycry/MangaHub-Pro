@@ -1056,7 +1056,10 @@
         focusedMangaId
     }) => {
 
-        // NOUVEAU : Calcul dynamique du nombre d'étagères
+        // Détection iOS Safari hors mode standalone (pas encore installée)
+        const isIosSafari = /iphone|ipad|ipod/i.test(navigator.userAgent) && /safari/i.test(navigator.userAgent) && !/crios|fxios|opios|mercury/i.test(navigator.userAgent);
+        const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+        const [showIosBanner, setShowIosBanner] = useState(() => isIosSafari && !isStandalone && !getSafeStorage('mangaHubIosBannerDismissed', ''));
         const [shelfRowsCount, setShelfRowsCount] = useState(1);
         useEffect(() => {
             const updateRows = () => {
@@ -1110,8 +1113,8 @@
 
                         <div className="flex items-center gap-2 sm:gap-4 flex-none">
                             {deferredPrompt && (
-                                <button onClick={handleInstallApp} className="bg-gradient-to-r from-theme-600 to-theme-800 text-white px-3 sm:px-4 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border border-theme-400 shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.9)] text-[10px] sm:text-xs font-black uppercase tracking-wider animate-[pulse_2s_ease-in-out_infinite]">
-                                    Installer App
+                                <button onClick={handleInstallApp} className="bg-gradient-to-r from-theme-600 to-theme-800 text-white px-3 sm:px-4 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border border-theme-400 shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.9)] text-[10px] sm:text-xs font-black uppercase tracking-wider animate-[pulse_2s_ease-in-out_infinite]" title="Installer MangaHub sur cet appareil">
+                                    ↓ Installer
                                 </button>
                             )}
                             
@@ -1356,6 +1359,27 @@
                                 <button disabled={selectedMangas.size === 0} onClick={() => setBatchDeleteConfirm(true)} className="p-2.5 bg-red-600 text-white rounded-xl hover:scale-105 hover:shadow-[0_0_15px_rgba(220,38,38,0.6)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition"><IconTrash width="20" height="20" /></button>
                                 <div className="w-px h-8 bg-theme-800/80 mx-1"></div>
                                 <button onClick={toggleSelectionMode} className="px-4 py-2.5 text-theme-400 hover:text-theme-200 transition font-black text-xs uppercase tracking-widest bg-theme-950/50 rounded-xl border border-theme-800/50 active:scale-95">Annuler</button>
+                            </div>
+                        </div>
+                    )}
+                    {/* Bannière installation iOS Safari */}
+                    {showIosBanner && (
+                        <div className="fixed bottom-0 left-0 right-0 z-[200] animate-slide-up" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+                            <div className="mx-4 mb-4 bg-slate-900/98 backdrop-blur-xl border border-theme-500/50 rounded-2xl p-5 shadow-[0_-10px_40px_rgba(var(--theme-rgb),0.4)]">
+                                <div className="flex items-start gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-theme-600/20 border border-theme-500/40 flex items-center justify-center flex-none text-2xl">📚</div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white font-black text-sm mb-1">Installer MangaHub</p>
+                                        <p className="text-white/50 text-xs leading-relaxed">
+                                            Appuie sur <span className="text-theme-300 font-bold">⎙ Partager</span> puis <span className="text-theme-300 font-bold">« Sur l'écran d'accueil »</span> pour utiliser l'app hors-ligne.
+                                        </p>
+                                    </div>
+                                    <button onClick={() => { setShowIosBanner(false); setSafeStorage('mangaHubIosBannerDismissed', '1'); }} className="text-white/40 hover:text-white/80 transition flex-none p-1 text-xl leading-none">✕</button>
+                                </div>
+                                {/* Flèche pointant vers le bouton Partager en bas de Safari */}
+                                <div className="flex justify-center mt-3">
+                                    <div className="text-theme-400 text-xs font-bold animate-bounce">↓ Bouton Partager en bas de Safari</div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -2480,13 +2504,21 @@
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
 
-    if ('serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator && window.location.protocol !== 'blob:' && window.location.protocol !== 'file:') {
         window.addEventListener('load', () => {
-            if (window.location.protocol !== 'blob:') {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker enregistré !', reg))
-                    .catch(err => console.error('Erreur Service Worker', err));
-            }
+            navigator.serviceWorker.register('./sw.js').then(reg => {
+                // Détection d'une nouvelle version disponible
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // Une mise à jour est prête — on recharge silencieusement
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                            navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+                        }
+                    });
+                });
+            }).catch(err => console.warn('[SW] Enregistrement échoué:', err));
         });
     }
 </script>
