@@ -1,78 +1,84 @@
-const CACHE_NAME = 'mangahub-pro-cache-v1';
+// MangaHub Pro — Service Worker
+// Stratégie : Cache-First pour les assets CDN, Network-First pour le HTML
 
-// Liste des fichiers de base à mettre en cache pour le mode hors-ligne
-const urlsToCache = [
-  './',
-  './index.html'
+const CACHE_NAME = ‘mangahub-v1’;
+
+const PRECACHE_ASSETS = [
+‘./’,
+‘./MangaHub.html’,
+‘https://unpkg.com/react@18/umd/react.production.min.js’,
+‘https://unpkg.com/react-dom@18/umd/react-dom.production.min.js’,
+‘https://unpkg.com/@babel/standalone/babel.min.js’,
+‘https://cdn.tailwindcss.com’,
+‘https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js’,
+‘https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js’,
+‘https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css’,
+‘https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap’,
 ];
 
-// ÉTAPE 1 : Installation du Service Worker
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('Cache ouvert');
-                return cache.addAll(urlsToCache);
-            })
-    );
-    // Force le SW à s'activer immédiatement
-    self.skipWaiting();
+// Installation : précache de l’app shell
+self.addEventListener(‘install’, (event) => {
+event.waitUntil(
+caches.open(CACHE_NAME).then(async (cache) => {
+await Promise.allSettled(
+PRECACHE_ASSETS.map(url =>
+cache.add(url).catch(err => console.warn(`[SW] Cache manqué: ${url}`, err))
+)
+);
+return self.skipWaiting();
+})
+);
 });
 
-// ÉTAPE 2 : Activation et nettoyage des anciens caches
-self.addEventListener('activate', (event) => {
-    const cacheWhitelist = [CACHE_NAME];
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
-                        console.log('Ancien cache supprimé:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
-    );
-    self.clients.claim();
+// Activation : suppression des anciens caches
+self.addEventListener(‘activate’, (event) => {
+event.waitUntil(
+caches.keys()
+.then(keys => Promise.all(
+keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+))
+.then(() => self.clients.claim())
+);
 });
 
-// ÉTAPE 3 : Interception des requêtes (Stratégie: Stale-While-Revalidate / Cache-First)
-self.addEventListener('fetch', (event) => {
-    // On ne gère que les requêtes GET
-    if (event.request.method !== 'GET') return;
+// Fetch : routage des stratégies
+self.addEventListener(‘fetch’, (event) => {
+const { request } = event;
+if (request.method !== ‘GET’) return;
+if (!request.url.startsWith(‘http’)) return;
 
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                // Si le fichier est dans le cache, on le retourne immédiatement
-                if (response) {
-                    return response;
-                }
-                
-                // Sinon on fait la requête sur le réseau
-                return fetch(event.request).then(
-                    (networkResponse) => {
-                        // On vérifie qu'on a bien reçu une réponse valide
-                        if(!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                            return networkResponse;
-                        }
+```
+const isHTML = request.url.includes('MangaHub.html') || request.url.endsWith('/');
+event.respondWith(isHTML ? networkFirst(request) : cacheFirst(request));
+```
 
-                        // On clone la réponse car elle ne peut être utilisée qu'une seule fois
-                        const responseToCache = networkResponse.clone();
+});
 
-                        caches.open(CACHE_NAME)
-                            .then((cache) => {
-                                // On ajoute le nouveau fichier au cache pour la prochaine fois
-                                cache.put(event.request, responseToCache);
-                            });
+// Network-First : toujours la dernière version du HTML
+async function networkFirst(request) {
+try {
+const res = await fetch(request);
+if (res.ok) (await caches.open(CACHE_NAME)).put(request, res.clone());
+return res;
+} catch {
+return (await caches.match(request)) || caches.match(’./MangaHub.html’);
+}
+}
 
-                        return networkResponse;
-                    }
-                );
-            }).catch(() => {
-                // Fallback optionnel en cas de coupure réseau complète
-                console.log('Mode hors-ligne actif, ressource introuvable sur le réseau.');
-            })
-    );
+// Cache-First : rapide pour les assets CDN stables
+async function cacheFirst(request) {
+const cached = await caches.match(request);
+if (cached) return cached;
+try {
+const res = await fetch(request);
+if (res.ok) (await caches.open(CACHE_NAME)).put(request, res.clone());
+return res;
+} catch {
+return new Response(’’, { status: 408, statusText: ‘Offline’ });
+}
+}
+
+// Message depuis le HTML (mise à jour immédiate)
+self.addEventListener(‘message’, (event) => {
+if (event.data?.type === ‘SKIP_WAITING’) self.skipWaiting();
 });
