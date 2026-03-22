@@ -1928,7 +1928,7 @@
             setAnimatingManga({ manga: m, rect, phase: 'start' });
         }, [markAsRead]);
 
-        // Orchestration des phases cinématiques
+        // Orchestration des phases cinématiques étagère → inspecteur
         useEffect(() => {
             if (!animatingManga) return;
             const { phase } = animatingManga;
@@ -1939,18 +1939,14 @@
             if (phase === 'rising')   { const t = next('pivoting', 350);  return () => clearTimeout(t); }
             if (phase === 'pivoting') { const t = next('expanding', 300); return () => clearTimeout(t); }
             if (phase === 'expanding') {
+                // La couverture est en plein écran — on ouvre l'inspecteur 3D et on efface l'overlay
                 const t = setTimeout(() => {
-                    const m = animatingManga.manga;
-                    setCurrentManga(m);
-                    setCursor(m.bookmark != null ? m.bookmark : 0);
-                    setView('reader');
-                    setZenMode(true);
-                    markAsRead(m);
-                    setTimeout(() => setAnimatingManga(null), 100);
-                }, 500);
+                    setInspectingManga(animatingManga.manga);
+                    setTimeout(() => setAnimatingManga(null), 80);
+                }, 480);
                 return () => clearTimeout(t);
             }
-        }, [animatingManga?.phase]);
+        }, [animatingManga?.phase, setInspectingManga]);
 
         const handleCloseReader = useCallback((e) => {
             if (e && e.stopPropagation) e.stopPropagation();
