@@ -135,64 +135,7 @@
     @keyframes bookmarkBounce { 0% { transform: translateX(-50%) scaleY(0); } 60% { transform: translateX(-50%) scaleY(1.2); } 80% { transform: translateX(-50%) scaleY(0.9); } 100% { transform: translateX(-50%) scaleY(1); } }
     .animate-bookmark-in { animation: bookmarkBounce 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards; transform-origin: top center; }
 
-    /* =====================================================
-       TRANSITIONS CINÉMATIQUES — Arc étagère → lecteur
-       ===================================================== */
 
-    /* Phase 1 : La couverture apparaît depuis la tranche (petite, centrée) */
-    @keyframes coverAppear {
-        0%   { transform: scale(0.05); opacity: 0;   filter: blur(6px) brightness(0.3); }
-        60%  { opacity: 1; filter: blur(1px) brightness(0.8); }
-        100% { transform: scale(1);    opacity: 1;   filter: blur(0px) brightness(1); }
-    }
-
-    /* Phase 2 : La couverture grossit encore */
-    @keyframes coverGrow {
-        0%   { transform: scale(1); }
-        100% { transform: scale(1.35); filter: brightness(1.1); }
-    }
-
-    /* Phase 3 : La couverture remplit l'écran */
-    @keyframes coverFill {
-        0%   { transform: scale(1.35); filter: brightness(1.1); }
-        100% { transform: scale(5.5);  filter: brightness(1.8) blur(3px); opacity: 0.6; }
-    }
-
-    /* Halo de lumière à l'apparition de la couverture */
-    @keyframes coverExpandGlow {
-        0%   { transform: scale(0.5); opacity: 0.8; }
-        60%  { transform: scale(4);   opacity: 0.4; }
-        100% { transform: scale(7);   opacity: 0; }
-    }
-
-    /* Phase 4 (Inspecteur→Lecteur) : Le livre fonce vers le spectateur — PORTAIL */
-    @keyframes bookPortalIn {
-        0%   { transform: scale(1);    opacity: 1; filter: brightness(1); }
-        50%  { transform: scale(2.2);  opacity: 1; filter: brightness(1.5); }
-        80%  { transform: scale(5);    opacity: 0.5; filter: brightness(2.5) blur(3px); }
-        100% { transform: scale(8);    opacity: 0; filter: brightness(4) blur(12px); }
-    }
-
-    /* Phase 5a (page simple) : couverture bascule depuis la gauche */
-    @keyframes coverPageOpen {
-        0%   { transform: perspective(1600px) rotateY(0deg);    filter: brightness(1); }
-        40%  { transform: perspective(1600px) rotateY(-50deg);  filter: brightness(0.65); }
-        100% { transform: perspective(1600px) rotateY(-170deg); filter: brightness(0.05); }
-    }
-
-    /* Phase 5b (double page) : couverture droite s'ouvre vers la gauche */
-    @keyframes coverDoubleRight {
-        0%   { transform: perspective(1600px) rotateY(0deg);  filter: brightness(1); }
-        100% { transform: perspective(1600px) rotateY(-170deg); filter: brightness(0.05); }
-    }
-
-    /* Phase 6 (Lecteur→Étagère) : Fermeture du livre et retour */
-    @keyframes readerExitPortal {
-        0%   { opacity: 1; transform: perspective(1200px) scale(1) translateZ(0); filter: none; }
-        100% { opacity: 0; transform: perspective(1200px) scale(0.12) translateZ(-1000px); filter: blur(6px) brightness(0.3); }
-    }
-
-    .cinematic-overlay { position: fixed; inset: 0; z-index: 3000; pointer-events: none; }
 </style>
 ```
 
@@ -687,23 +630,15 @@
             spinTimeoutRef.current = setTimeout(() => setAutoSpin(true), 1500);
         };
 
-        const [openPhase, setOpenPhase] = useState(null); // null | 'portal' | 'page-open' | 'done'
+        const [openPhase, setOpenPhase] = useState(null);
 
         const handleReadClick = (e) => {
             e.stopPropagation();
             if (dragInfo.current.hasDragged) { dragInfo.current.hasDragged = false; return; }
             setAutoSpin(false);
             setIsOpening(true);
-            setOpenPhase('portal');
-
-            // Phase portail : le livre fonce vers l'écran (600ms)
             setTimeout(() => {
-                setOpenPhase('page-open');
-                // Phase ouverture couverture (400ms) puis lancement lecteur
-                setTimeout(() => {
-                    setOpenPhase('done');
-                    onRead(manga, { currentTarget: document.getElementById('inspect-book-container') }, true);
-                }, 380);
+                onRead(manga, { currentTarget: document.getElementById('inspect-book-container') }, true);
             }, 500);
         };
 
@@ -742,52 +677,7 @@
         return (
             <div className={`fixed inset-0 z-[1500] flex items-center justify-center transition-all duration-500 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'} bg-black/80 backdrop-blur-xl`} onClick={onClose}>
                 
-                <div className={`absolute inset-0 bg-black z-[2000] pointer-events-none transition-opacity duration-300 ${isOpening && openPhase === 'done' ? 'opacity-100' : 'opacity-0'}`}></div>
-
-                {/* Overlay portail : snapshot du livre qui grossit et disparaît */}
-                {openPhase === 'portal' && coverUrl && (
-                    <div className="fixed inset-0 z-[3500] pointer-events-none flex items-center justify-center"
-                         style={{ animation: 'bookPortalIn 0.5s cubic-bezier(0.22,1,0.36,1) forwards' }}>
-                        <img src={coverUrl} style={{
-                            width: `${bw * scale * globalScale}px`,
-                            height: `${bh * scale * globalScale}px`,
-                            objectFit: 'contain',
-                            display: 'block',
-                        }} />
-                    </div>
-                )}
-
-                {/* Overlay ouverture de couverture */}
-                {openPhase === 'page-open' && coverUrl && (
-                    <div className="absolute inset-0 z-[2100] pointer-events-none flex items-center justify-center" style={{ perspective: '1600px', backgroundColor: 'black' }}>
-                        {isDouble ? (
-                            /* Mode double page : les deux moitiés s'ouvrent en livre */
-                            <div style={{ width: `${bw * 2 * globalScale}px`, height: `${bh * scale * globalScale}px`, position:'relative', display:'flex' }}>
-                                {/* Moitié droite fixe (4ème de couverture) */}
-                                <div className="flex-1 overflow-hidden" style={{ backgroundImage:`url(${coverUrl})`, backgroundSize:`200% 100%`, backgroundPosition: isRTL ? '100% 50%' : '0% 50%' }} />
-                                {/* Moitié gauche qui s'ouvre */}
-                                <div className="flex-1 overflow-hidden" style={{
-                                    backgroundImage:`url(${coverUrl})`, backgroundSize:`200% 100%`, backgroundPosition: isRTL ? '0% 50%' : '100% 50%',
-                                    animation: 'coverDoubleRight 0.5s cubic-bezier(0.4,0,0.2,1) forwards',
-                                    transformOrigin: 'left center',
-                                }} />
-                                {/* Ombre de reliure centrale */}
-                                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4 pointer-events-none z-10" style={{ background:'linear-gradient(to right, rgba(0,0,0,0.6), rgba(0,0,0,0.1), rgba(0,0,0,0.6))' }} />
-                            </div>
-                        ) : (
-                            /* Mode simple : la couverture bascule depuis la gauche */
-                            <div style={{ width:`${bw * scale * globalScale}px`, height:`${bh * scale * globalScale}px`, position:'relative', transformStyle:'preserve-3d' }}>
-                                <div className="absolute inset-0 bg-black rounded-sm" style={{ background:'linear-gradient(135deg,#0a0a0a,#1a1a2e)' }}>
-                                    <div className="w-full h-full opacity-20" style={{ background:'repeating-linear-gradient(0deg,transparent,transparent 18px,rgba(255,255,255,0.04) 18px,rgba(255,255,255,0.04) 19px)' }}/>
-                                </div>
-                                <div className="absolute inset-0 overflow-hidden rounded-sm" style={{ animation:'coverPageOpen 0.42s cubic-bezier(0.4,0,0.2,1) forwards', transformOrigin:'left center', transformStyle:'preserve-3d' }}>
-                                    <img src={coverUrl} className="w-full h-full object-contain" style={{ backfaceVisibility:'hidden' }}/>
-                                    <div className="absolute inset-y-0 left-0 w-6 pointer-events-none" style={{ background:'linear-gradient(to right, rgba(0,0,0,0.5), transparent)' }}/>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
+                <div className={`absolute inset-0 bg-black z-[2000] pointer-events-none transition-opacity duration-500 ease-out ${isOpening ? 'opacity-100' : 'opacity-0'}`}></div>
 
                 <button onClick={handlePrev} disabled={!hasPrev} className={`absolute left-2 sm:left-8 md:left-12 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center backdrop-blur-md border transition-all z-[1600] ${isOpening ? 'opacity-0 pointer-events-none' : ''} ${hasPrev ? 'bg-black/50 hover:bg-theme-600/80 text-white border-white/10 hover:border-theme-400 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] cursor-pointer active:scale-95' : 'bg-black/20 text-white/20 border-white/5 shadow-none cursor-not-allowed opacity-50'}`}>
                     <IconChevronLeft width="32" height="32" />
@@ -1165,7 +1055,7 @@
         setAppTheme, shelfTheme, setShelfTheme, handleExport, handleImport, setPurgeConfirm,
         showTags, setShowTags, activeTags, setActiveTags, libraryStructure, setActiveCardMenu,
         isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode,
-        setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga, setAnimatingManga
+        setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga
     }) => {
 
         // Détection iOS Safari hors mode standalone (pas encore installée)
@@ -1402,9 +1292,7 @@
                                                 {/* Tranche 3D du Livre - Ombre avec spread négatif (-4px) pour qu'elle ne bave plus sur les livres à gauche */}
                                                 <div onClick={(e) => { 
                                                     if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); return; }
-                                                    // Lance la transition cinématique depuis la position exacte de la tranche
-                                                    const rect = e.currentTarget.getBoundingClientRect();
-                                                    setAnimatingManga({ manga: m, rect, phase: 'start' });
+                                                    setInspectingManga(m);
                                                 }} className={`manga-cover-image relative flex-none cursor-pointer z-10 rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : 'hover:-translate-y-5 hover:shadow-[0_20px_30px_-8px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.15)]'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))`, boxShadow: '0 8px 10px -4px rgba(0,0,0,0.8)', transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                                                     
                                                     {/* Bulle d'information au survol (Couverture + Métadonnées) - Apparaît à droite */}
@@ -1523,10 +1411,7 @@
 
         return (
             <div 
-                className={`reader-viewport overflow-hidden gpu-accelerated animate-reader-enter ${isNightMode ? 'night-mode-active' : ''}`}
-                style={{
-                    animation: isExitingReader ? 'readerExitPortal 0.45s cubic-bezier(0.4,0,0.8,1) forwards' : 'none',
-                }}
+                className={`reader-viewport overflow-hidden gpu-accelerated animate-reader-enter transition-[transform,opacity] duration-[400ms] ${isNightMode ? 'night-mode-active' : ''} ${isExitingReader ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}
             >
                 <div className={`reader-ui-top ${zenMode ? 'opacity-0 pointer-events-none -translate-y-full' : 'opacity-100 translate-y-0'} flex items-center justify-between w-full px-4 md:px-8 mx-auto`}>
                     <button onClick={handleCloseReader} className="bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl text-theme-400 active:scale-95 transition flex items-center justify-center border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] hover:text-theme-300 hover:bg-theme-900/30"><IconChevronLeft width="24" height="24" /></button>
@@ -1914,12 +1799,11 @@
                 markAsRead(m);
                 return;
             }
-            // Récupère la position de la tranche sur l'étagère
-            let rect = { top: window.innerHeight/2, left: window.innerWidth/2, width: 24, height: 200 };
+            let rect = { top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0 };
             if (e && e.currentTarget) {
-                const spineNode = e.currentTarget.closest?.('.manga-cover-image') || e.currentTarget.querySelector?.('.manga-cover-image') || e.currentTarget;
-                const found = spineNode.getBoundingClientRect();
-                if (found.width > 0) rect = found;
+                const coverNode = e.currentTarget.querySelector('.manga-cover-image');
+                if (coverNode) rect = coverNode.getBoundingClientRect();
+                else rect = e.currentTarget.getBoundingClientRect();
             } else {
                 const fallback = document.getElementById('inspect-book-container');
                 if (fallback) rect = fallback.getBoundingClientRect();
@@ -1927,25 +1811,31 @@
             setAnimatingManga({ manga: m, rect, phase: 'start' });
         }, [markAsRead]);
 
-        // Orchestration des phases cinématiques étagère → inspecteur
         useEffect(() => {
-            if (!animatingManga) return;
-            const { phase } = animatingManga;
-            const next = (nextPhase, delay) => setTimeout(() =>
-                setAnimatingManga(prev => prev ? { ...prev, phase: nextPhase } : null), delay);
-
-            if (phase === 'start')    { const t = next('rising', 16);     return () => clearTimeout(t); }
-            if (phase === 'rising')   { const t = next('pivoting', 350);  return () => clearTimeout(t); }
-            if (phase === 'pivoting') { const t = next('expanding', 300); return () => clearTimeout(t); }
-            if (phase === 'expanding') {
-                // La couverture est en plein écran — on ouvre l'inspecteur 3D et on efface l'overlay
-                const t = setTimeout(() => {
-                    setInspectingManga(animatingManga.manga);
-                    setTimeout(() => setAnimatingManga(null), 80);
-                }, 480);
-                return () => clearTimeout(t);
+            if (animatingManga && animatingManga.phase === 'start') {
+                const rAF = requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        setAnimatingManga(prev => prev ? { ...prev, phase: 'expanding' } : null);
+                    });
+                });
+                return () => cancelAnimationFrame(rAF);
             }
-        }, [animatingManga?.phase, setInspectingManga]);
+        }, [animatingManga?.phase]);
+
+        useEffect(() => {
+            if (animatingManga && animatingManga.phase === 'expanding') {
+                const timer = setTimeout(() => {
+                    const m = animatingManga.manga;
+                    setCurrentManga(m);
+                    setCursor(m.bookmark != null ? m.bookmark : 0);
+                    setView('reader');
+                    setZenMode(true);
+                    markAsRead(m);
+                    setTimeout(() => setAnimatingManga(null), 50);
+                }, 500);
+                return () => clearTimeout(timer);
+            }
+        }, [animatingManga?.phase]);
 
         const handleCloseReader = useCallback((e) => {
             if (e && e.stopPropagation) e.stopPropagation();
@@ -1956,7 +1846,7 @@
                 setZenMode(false);
                 loadMangas();
                 setIsExitingReader(false);
-            }, 450);
+            }, 400);
         }, [currentManga, allSpreads, cursor]);
 
         // --- EXPORT OPTIMISÉ (Prévention Crash RAM iOS) ---
@@ -2553,7 +2443,7 @@
                         handleOpenManga={handleOpenManga} setActiveCardMenu={setActiveCardMenu}
                         isSelectionMode={isSelectionMode} selectedMangas={selectedMangas}
                         toggleMangaSelection={toggleMangaSelection} toggleSelectionMode={toggleSelectionMode} setShowBatchEditModal={setShowBatchEditModal}
-                        setBatchDeleteConfirm={setBatchDeleteConfirm} setInspectingManga={setInspectingManga} setAnimatingManga={setAnimatingManga}
+                        setBatchDeleteConfirm={setBatchDeleteConfirm} setInspectingManga={setInspectingManga}
                     />
                 )}
 
@@ -2608,70 +2498,18 @@
                 <LoadingOverlay loading={loading} importProgress={importProgress} />
                 <ToastNotification toast={toast} />
 
-                {animatingManga && <CinematicTransition animatingManga={animatingManga} />}
+                {animatingManga && (
+                    <div className="fixed inset-0 z-[2000] pointer-events-none">
+                        <div className="absolute inset-0 bg-black transition-opacity duration-[500ms] ease-[cubic-bezier(0.22,1,0.36,1)]" style={{ opacity: animatingManga.phase === 'expanding' ? 1 : 0 }} />
+                        <div className="absolute overflow-hidden transition-[top,left,width,height,border-radius] duration-[500ms] ease-[cubic-bezier(0.22,1,0.36,1)] shadow-[0_30px_60px_rgba(0,0,0,0.9)]"
+                            style={{ top: animatingManga.phase === 'expanding' ? '0px' : animatingManga.rect.top + 'px', left: animatingManga.phase === 'expanding' ? '0px' : animatingManga.rect.left + 'px', width: animatingManga.phase === 'expanding' ? '100vw' : animatingManga.rect.width + 'px', height: animatingManga.phase === 'expanding' ? '100vh' : animatingManga.rect.height + 'px', borderRadius: animatingManga.phase === 'expanding' ? '0px' : '16px', transform: 'translateZ(0)' }}>
+                            <StackThumbnail file={animatingManga.manga.coverDouble || animatingManga.manga.coverStart || animatingManga.manga.cover} contain={true} />
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
-
-    /* =====================================================
-       COMPOSANT TRANSITION CINÉMATIQUE
-       Gère les 3 phases : étagère → cover → inspecteur
-       ===================================================== */
-    const CinematicTransition = memo(({ animatingManga }) => {
-        const coverFile = animatingManga.manga.coverDouble || animatingManga.manga.coverStart || animatingManga.manga.cover;
-        const coverUrl  = getCachedUrl(coverFile);
-        const phase     = animatingManga.phase;
-        const rect      = animatingManga.rect;
-
-        // Centre de la tranche cliquée
-        const cx = rect.left + rect.width  / 2;
-        const cy = rect.top  + rect.height / 2;
-
-        // Taille cible de la couverture (ratio manga)
-        const coverH = Math.min(rect.height * 1.05, window.innerHeight * 0.68);
-        const coverW = coverH * (215 / 320);
-
-        // Phase start : invisible (juste pour déclencher le cycle)
-        if (phase === 'start') return null;
-
-        return (
-            <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 3000 }}>
-
-                {/* Fond noir — apparaît progressivement */}
-                <div className="absolute inset-0 bg-black" style={{
-                    opacity: phase === 'rising' ? 0.5 : phase === 'pivoting' ? 0.75 : 1,
-                    transition: 'opacity 0.35s ease'
-                }} />
-
-                {/* Couverture qui surgit depuis la tranche et grandit */}
-                {coverUrl && (
-                    <div className="absolute overflow-hidden rounded shadow-[0_0_100px_rgba(0,0,0,1)]" style={{
-                        left: cx - coverW / 2,
-                        top:  cy - coverH / 2,
-                        width: coverW,
-                        height: coverH,
-                        animation: phase === 'rising'
-                            ? 'coverAppear 0.32s cubic-bezier(0.22,1,0.36,1) forwards'
-                            : phase === 'pivoting'
-                            ? 'coverGrow 0.28s cubic-bezier(0.22,1,0.36,1) forwards'
-                            : 'coverFill 0.42s cubic-bezier(0.22,1,0.36,1) forwards',
-                        transformOrigin: 'center center',
-                    }}>
-                        <img src={coverUrl} className="w-full h-full object-contain" style={{ display:'block' }} />
-                    </div>
-                )}
-
-                {/* Halo thème */}
-                {phase === 'expanding' && (
-                    <div className="absolute rounded-full pointer-events-none" style={{
-                        left: cx - 80, top: cy - 80, width: 160, height: 160,
-                        background: 'radial-gradient(circle, rgba(var(--theme-rgb),0.4), transparent 70%)',
-                        animation: 'coverExpandGlow 0.6s ease-out forwards',
-                    }} />
-                )}
-            </div>
-        );
-    });
     
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
