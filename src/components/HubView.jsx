@@ -244,9 +244,10 @@ const HubView = memo(({
                                     return (
                                         <div key={m.id} className="flex-none flex items-end relative group/book hover:z-[100]" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
                                             
+                                            {/* 👉 Ici, on transmet l'événement "e" avec "setInspectingManga(m, e)" */}
                                             <div onClick={(e) => { 
                                                 if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); return; }
-                                                setInspectingManga(m);
+                                                setInspectingManga(m, e);
                                             }} className={`manga-cover-image relative flex-none cursor-pointer z-10 rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : 'hover:-translate-y-5 hover:shadow-[0_20px_30px_-8px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.15)]'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))`, boxShadow: '0 8px 10px -4px rgba(0,0,0,0.8)', transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                                                 
                                                 <div className="absolute bottom-2 left-[calc(100%+12px)] bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.3)] opacity-0 group-hover/book:opacity-100 group-hover/book:translate-y-0 pointer-events-none z-[200] overflow-hidden border border-white/10 flex flex-col w-[140px] sm:w-[180px] origin-bottom-left translate-y-2" style={{ transition: 'opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1)' }}>

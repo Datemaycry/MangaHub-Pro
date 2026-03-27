@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo, useLayoutEffect } from 'react';
 import { IconChevronLeft, IconChevronRight, IconReverse, IconPlay, IconSettings } from './Icons';
 import { getCachedUrl, MANGA_PROPS } from '../utils';
 
@@ -7,7 +7,8 @@ const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
     return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : null;
 });
 
-const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMenu, onPrev, onNext, hasPrev, hasNext }) => {
+// 👉 Ajout de inspectingCoords pour l'animation depuis l'étagère
+const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMenu, onPrev, onNext, hasPrev, hasNext, inspectingCoords }) => {
     if (!manga) return null;
 
     const [globalScale, setGlobalScale] = useState(1);
@@ -51,6 +52,12 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     const [autoSpin, setAutoSpin] = useState(true);
     const [spinDirection, setSpinDirection] = useState(isRTL ? -1 : 1);
     const [isOpening, setIsOpening] = useState(false);
+    
+    // 👉 Les "Refs" pour faire voler les éléments (Bibliothèque <-> Centre)
+    const bookContainerRef = useRef(null);
+    const uiRef = useRef(null);
+    const [isClosing, setIsClosing] = useState(false);
+
     const dragInfo = useRef({ startX: 0, startY: 0, initRotY: 0, initRotX: 0, hasDragged: false });
     const spinTimeoutRef = useRef(null);
 
@@ -96,27 +103,95 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         spinTimeoutRef.current = setTimeout(() => setAutoSpin(true), 1500);
     };
 
+    // 📖 OUVERTURE CLASSIQUE (Fondu au noir sans zoom)
     const handleReadClick = (e) => {
-        e.stopPropagation();
-        if (dragInfo.current.hasDragged) { dragInfo.current.hasDragged = false; return; }
+        if (e) e.stopPropagation();
+        if (dragInfo.current && dragInfo.current.hasDragged) { dragInfo.current.hasDragged = false; return; }
+        if (isOpening) return;
+
         setAutoSpin(false);
+        setRotX(0); // Livre droit
+        setRotY(0); // Livre de face
         setIsOpening(true);
+
         setTimeout(() => {
-            onRead(manga, { currentTarget: document.getElementById('inspect-book-container') }, true);
-        }, 500);
+            onRead(manga);
+        }, 600);
     };
+
+    // 🪃 LE BOOMERANG (Tomb Raider -> Bibliothèque)
+    const handleClose = useCallback((e) => {
+        if (e) e.stopPropagation();
+        if (isClosing) return; 
+        
+        setIsClosing(true);
+
+        if (inspectingCoords && bookContainerRef.current && uiRef.current) {
+            const targetCenterX = inspectingCoords.left + (inspectingCoords.width / 2);
+            const targetCenterY = inspectingCoords.top + (inspectingCoords.height / 2);
+            const screenCenterX = window.innerWidth / 2;
+            const screenCenterY = window.innerHeight / 2;
+            
+            const moveX = (targetCenterX - screenCenterX) / globalScale;
+            const moveY = (targetCenterY - screenCenterY) / globalScale;
+            
+            const bookVisualWidth = MANGA_PROPS.faceW * globalScale * scale;
+            const targetScale = inspectingCoords.width / bookVisualWidth;
+
+            uiRef.current.style.transition = 'opacity 0.2s ease';
+            uiRef.current.style.opacity = '0'; 
+
+            bookContainerRef.current.style.transformOrigin = 'center center';
+            bookContainerRef.current.style.transition = 'transform 0.4s cubic-bezier(0.5, 0, 0.75, 0)'; 
+            bookContainerRef.current.style.transform = `translate(${moveX}px, ${moveY}px) scale(${targetScale})`;
+        }
+
+        setTimeout(() => {
+            onClose();
+        }, 400);
+    }, [isClosing, inspectingCoords, globalScale, scale, onClose]);
+
+    // ✨ L'ENTRÉE MAGIQUE (Bibliothèque -> Tomb Raider)
+    useLayoutEffect(() => {
+        if (!inspectingCoords || !bookContainerRef.current || !uiRef.current) return;
+
+        const targetWidth = MANGA_PROPS.faceW * globalScale * scale;
+        const targetHeight = MANGA_PROPS.h * globalScale * scale;
+        const targetLeft = (window.innerWidth - targetWidth) / 2;
+        const targetTop = (window.innerHeight - targetHeight) / 2;
+
+        const deltaX = inspectingCoords.left - targetLeft;
+        const deltaY = inspectingCoords.top - targetTop;
+        const deltaScale = inspectingCoords.width / targetWidth;
+
+        bookContainerRef.current.style.transition = 'none';
+        bookContainerRef.current.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${deltaScale})`;
+        uiRef.current.style.transition = 'none';
+        uiRef.current.style.opacity = '0';
+
+        bookContainerRef.current.offsetHeight;
+
+        requestAnimationFrame(() => {
+            if (!bookContainerRef.current || !uiRef.current) return;
+            bookContainerRef.current.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            bookContainerRef.current.style.transform = 'translate(0, 0) scale(1)';
+            
+            uiRef.current.style.transition = 'opacity 0.4s ease 0.2s';
+            uiRef.current.style.opacity = '1';
+        });
+    }, [inspectingCoords, globalScale, scale]);
 
     // --- ANIMATION STYLE TOMB RAIDER (SLIDE 3D) ---
     const [trState, setTrState] = useState('idle');
 
-    React.useLayoutEffect(() => {
+    useLayoutEffect(() => {
         const dir = trState === 'leaving-next' ? 'next' : trState === 'leaving-prev' ? 'prev' : null;
         if (!dir) return;
         setTrState(`entering-${dir}`);
         let f2;
         const f1 = requestAnimationFrame(() => { f2 = requestAnimationFrame(() => setTrState('idle')); });
         return () => { cancelAnimationFrame(f1); cancelAnimationFrame(f2); };
-    }, [manga.id]);
+    }, [manga.id, trState]);
 
     const handlePrev = useCallback((e) => {
         e.stopPropagation();
@@ -139,8 +214,9 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     else if (trState === 'entering-prev') trStyle = { transition: 'none', transform: 'translateX(-40vw) translateZ(-600px) scale(0.6) rotateY(60deg)', opacity: 0 };
 
     return (
-        <div className={`fixed inset-0 z-[1500] flex items-center justify-center transition-all duration-500 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'} bg-black/80 backdrop-blur-xl`} onClick={onClose}>
+        <div className={`fixed inset-0 z-[1500] flex items-center justify-center transition-all duration-400 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'} ${isClosing ? 'bg-transparent backdrop-blur-none' : 'bg-black/80 backdrop-blur-xl'}`} onClick={handleClose}>
             
+            {/* 👉 Fondu classique au noir */}
             <div className={`absolute inset-0 bg-black z-[2000] pointer-events-none transition-opacity duration-500 ease-out ${isOpening ? 'opacity-100' : 'opacity-0'}`}></div>
 
             <button onClick={handlePrev} disabled={!hasPrev} className={`absolute left-2 sm:left-8 md:left-12 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center backdrop-blur-md border transition-all z-[1600] ${isOpening ? 'opacity-0 pointer-events-none' : ''} ${hasPrev ? 'bg-black/50 hover:bg-theme-600/80 text-white border-white/10 hover:border-theme-400 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] cursor-pointer active:scale-95' : 'bg-black/20 text-white/20 border-white/5 shadow-none cursor-not-allowed opacity-50'}`}>
@@ -156,62 +232,69 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                     <div style={{ perspective: '2000px' }} className="flex justify-center items-center z-[1900] h-[520px] w-full mt-4">
                         <div style={{ ...trStyle, transformStyle: 'preserve-3d' }}>
                             
-                            <div id="inspect-book-container" className="relative cursor-grab active:cursor-grabbing group touch-none" 
-                                style={{ 
-                                    width: `${bw}px`, height: `${bh}px`, 
-                                    animation: 'artifactFloat 6s ease-in-out infinite',
-                                    animationPlayState: isOpening ? 'paused' : 'running',
-                                    transformStyle: 'preserve-3d', 
-                                    transform: `scale(${scale}) translateY(0px)`
-                                }} 
-                                onClick={handleReadClick}
-                                onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-                                
-                                <div className="w-full h-full relative" style={{ transformStyle: 'preserve-3d', transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)` }}>
+                            {/* 👉 La ref pour le vol est ici, mais SANS le Plongeon */}
+                            <div ref={bookContainerRef} className="origin-center flex justify-center items-center">
+                                <div id="inspect-book-container" className="relative cursor-grab active:cursor-grabbing group touch-none" 
+                                    style={{ 
+                                        width: `${bw}px`, height: `${bh}px`, 
+                                        animation: 'artifactFloat 6s ease-in-out infinite',
+                                        animationPlayState: isOpening ? 'paused' : 'running',
+                                        transformStyle: 'preserve-3d', 
+                                        transform: `scale(${scale}) translateY(0px)`
+                                    }} 
+                                    onClick={handleReadClick}
+                                    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
                                     
-                                    <div className="absolute inset-0" style={{ transform: `translateZ(${bd/2}px)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
-                                        {isDouble ? (
-                                            <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosFront }}></div>
-                                        ) : (
-                                            <div className="w-full h-full bg-black"><StackThumbnail file={manga.coverStart || manga.cover} /></div>
-                                        )}
+                                    <div className="w-full h-full relative" style={{ 
+                                        transformStyle: 'preserve-3d', 
+                                        transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)`,
+                                        transition: isOpening ? 'transform 0.4s ease-out' : 'none' 
+                                    }}>
+                                        
+                                        <div className="absolute inset-0" style={{ transform: `translateZ(${bd/2}px)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+                                            {isDouble ? (
+                                                <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosFront }}></div>
+                                            ) : (
+                                                <div className="w-full h-full bg-black"><StackThumbnail file={manga.coverStart || manga.cover} /></div>
+                                            )}
+                                        </div>
+
+                                        <div className="absolute inset-0" style={{ transform: `translateZ(${-bd/2}px) rotateY(180deg)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+                                            {isDouble ? (
+                                                <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosBack }}></div>
+                                            ) : (
+                                                <div className="w-full h-full bg-black"><StackThumbnail file={manga.coverEnd || manga.coverStart || manga.cover} /></div>
+                                            )}
+                                        </div>
+
+                                        <div className="absolute inset-y-0 bg-[#0f172a]" style={{ width: `${bd}px`, left: spineIsRight ? 'auto' : 0, right: spineIsRight ? 0 : 'auto', transform: `translateX(${spineIsRight ? bd/2 : -bd/2}px) rotateY(${spineIsRight ? 90 : -90}deg)` }}>
+                                            {isDouble ? (
+                                                <div className="w-full h-full" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: bgPosSpine }}></div>
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center border-l border-white/20 border-r border-black/80">
+                                                    <span className="text-white font-black text-[12px] uppercase tracking-widest whitespace-nowrap" style={{ transform: 'rotate(90deg)' }}>{manga.title}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="absolute inset-y-0 bg-[#e8e4db]" style={{ width: `${bd}px`, left: spineIsRight ? 0 : 'auto', right: spineIsRight ? 'auto' : 0, transform: `translateX(${spineIsRight ? -bd/2 : bd/2}px) rotateY(${spineIsRight ? -90 : 90}deg)` }}>
+                                            <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIMVYzSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
+                                        </div>
+                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, top: 0, transform: `translateY(${-bd/2}px) rotateX(90deg)` }}>
+                                            <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
+                                        </div>
+                                        <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, bottom: 0, transform: `translateY(${bd/2}px) rotateX(-90deg)` }}>
+                                            <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
+                                        </div>
                                     </div>
 
-                                    <div className="absolute inset-0" style={{ transform: `translateZ(${-bd/2}px) rotateY(180deg)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
-                                        {isDouble ? (
-                                            <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosBack }}></div>
-                                        ) : (
-                                            <div className="w-full h-full bg-black"><StackThumbnail file={manga.coverEnd || manga.coverStart || manga.cover} /></div>
-                                        )}
-                                    </div>
-
-                                    <div className="absolute inset-y-0 bg-[#0f172a]" style={{ width: `${bd}px`, left: spineIsRight ? 'auto' : 0, right: spineIsRight ? 0 : 'auto', transform: `translateX(${spineIsRight ? bd/2 : -bd/2}px) rotateY(${spineIsRight ? 90 : -90}deg)` }}>
-                                        {isDouble ? (
-                                            <div className="w-full h-full" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: bgPosSpine }}></div>
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center border-l border-white/20 border-r border-black/80">
-                                                <span className="text-white font-black text-[12px] uppercase tracking-widest whitespace-nowrap" style={{ transform: 'rotate(90deg)' }}>{manga.title}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="absolute inset-y-0 bg-[#e8e4db]" style={{ width: `${bd}px`, left: spineIsRight ? 0 : 'auto', right: spineIsRight ? 'auto' : 0, transform: `translateX(${spineIsRight ? -bd/2 : bd/2}px) rotateY(${spineIsRight ? -90 : 90}deg)` }}>
-                                        <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIMVYzSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
-                                    </div>
-                                    <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, top: 0, transform: `translateY(${-bd/2}px) rotateX(90deg)` }}>
-                                        <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
-                                    </div>
-                                    <div className="absolute left-0 right-0 bg-[#e8e4db]" style={{ height: `${bd}px`, bottom: 0, transform: `translateY(${bd/2}px) rotateX(-90deg)` }}>
-                                        <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzIiBoZWlnaHQ9IjMiPjxwYXRoIGQ9Ik0wLDBIM1YxSDBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+')]"></div>
-                                    </div>
                                 </div>
-
                             </div>
                         </div>
                     </div>
 
-                    {/* Méta-données & Boutons d'action */}
-                    <div className="flex flex-col items-center gap-6 w-full max-w-lg z-30 mt-6">
+                    {/* 👉 uiRef est attachée ici pour que le texte s'efface en premier */}
+                    <div ref={uiRef} className="flex flex-col items-center gap-6 w-full max-w-lg z-30 mt-6 transition-opacity">
                         <div className="text-center px-4 w-full">
                             <span className="text-theme-400 font-black uppercase tracking-widest text-xs mb-2 block drop-shadow-md">
                                 {manga.group || "Volume Indépendant"}
@@ -227,7 +310,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                         </div>
 
                         <div className="flex items-center gap-4 w-full mt-4">
-                            <button onClick={onClose} className="flex-1 py-5 rounded-2xl bg-white/5 text-white/70 font-black uppercase tracking-widest text-xs hover:bg-white/10 hover:text-white transition-colors border border-white/10 active:scale-95">
+                            <button onClick={handleClose} className="flex-1 py-5 rounded-2xl bg-white/5 text-white/70 font-black uppercase tracking-widest text-xs hover:bg-white/10 hover:text-white transition-colors border border-white/10 active:scale-95">
                                 Remettre
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); setSpinDirection(d => d * -1); setAutoSpin(true); }} className="w-14 h-[60px] rounded-2xl bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-white/10 active:scale-95 flex items-center justify-center flex-none" title="Inverser la rotation">

@@ -100,6 +100,9 @@ const App = () => {
     const [isExitingReader, setIsExitingReader] = useState(false); 
     
     const [inspectingManga, setInspectingManga] = useState(null);
+    
+    // 👉 On ajoute l'état pour sauvegarder les coordonnées du clic
+    const [inspectingCoords, setInspectingCoords] = useState(null);
 
     const [isAdding, setIsAdding] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -281,6 +284,22 @@ const App = () => {
         }
         setAnimatingManga({ manga: m, rect, phase: 'start' });
     }, [markAsRead]);
+
+    // 👉 La fonction modifiée pour capturer les coordonnées
+    const handleInspectManga = useCallback((manga, e) => {
+        if (e && e.currentTarget) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setInspectingCoords({
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height
+            });
+        } else {
+            setInspectingCoords(null);
+        }
+        setInspectingManga(manga);
+    }, []);
 
     useEffect(() => {
         if (animatingManga && animatingManga.phase === 'start') {
@@ -896,7 +915,7 @@ const App = () => {
                     handleOpenManga={handleOpenManga} setActiveCardMenu={setActiveCardMenu}
                     isSelectionMode={isSelectionMode} selectedMangas={selectedMangas}
                     toggleMangaSelection={toggleMangaSelection} toggleSelectionMode={toggleSelectionMode} setShowBatchEditModal={setShowBatchEditModal}
-                    setBatchDeleteConfirm={setBatchDeleteConfirm} setInspectingManga={setInspectingManga}
+                    setBatchDeleteConfirm={setBatchDeleteConfirm} setInspectingManga={handleInspectManga}
                 />
             )}
 
@@ -916,6 +935,7 @@ const App = () => {
             {inspectingManga && (
                 <MangaInspector 
                     manga={inspectingManga} 
+                    inspectingCoords={inspectingCoords} 
                     onClose={() => setInspectingManga(null)} 
                     onRead={(m, e, skipAnim) => {
                         handleOpenManga(m, e, skipAnim);
