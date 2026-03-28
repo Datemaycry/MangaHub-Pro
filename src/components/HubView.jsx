@@ -19,7 +19,7 @@ const HubView = memo(({
     setAppTheme, shelfTheme, setShelfTheme, handleExport, handleImport, setPurgeConfirm,
     showTags, setShowTags, activeTags, setActiveTags, libraryStructure, setActiveCardMenu,
     isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode,
-    setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga
+    toggleSelectAllMangas, setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga
 }) => {
 
     const isIosSafari = /iphone|ipad|ipod/i.test(navigator.userAgent) && /safari/i.test(navigator.userAgent) && !/crios|fxios|opios|mercury/i.test(navigator.userAgent);
@@ -44,6 +44,12 @@ const HubView = memo(({
         window.addEventListener('resize', updateRows);
         return () => window.removeEventListener('resize', updateRows);
     }, [libraryStructure.flattened.length]);
+
+    const handleSelectAll = () => {
+        const allFilteredIds = libraryStructure.flattened.filter(i => i.type === 'manga').map(i => i.data.id);
+        if (toggleSelectAllMangas) toggleSelectAllMangas(allFilteredIds);
+    };
+    const allSelected = libraryStructure.flattened.filter(i => i.type === 'manga').length > 0 && selectedMangas.size === libraryStructure.flattened.filter(i => i.type === 'manga').length;
 
     return (
         <div 
@@ -133,9 +139,9 @@ const HubView = memo(({
                                                 <button onClick={handleExport} className="flex-1 flex items-center justify-center h-10 bg-theme-900/20 text-theme-400 hover:text-white hover:bg-theme-600/40 rounded-xl transition-all border border-theme-800/50 hover:border-theme-500 hover:shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)]">
                                                     <IconFloppyUp width="16" height="16" />
                                                 </button>
-                                                <label className="flex-1 flex items-center justify-center h-10 bg-theme-900/20 text-theme-400 hover:text-white hover:bg-theme-600/40 rounded-xl transition-all cursor-pointer border border-theme-800/50 hover:border-theme-500 hover:shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)]">
+                                            <label className="flex-1 flex items-center justify-center h-10 bg-theme-900/20 text-theme-400 hover:text-white hover:bg-theme-600/40 rounded-xl transition-all cursor-pointer border border-theme-800/50 hover:border-theme-500 hover:shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)]">
                                                     <IconFloppyDown width="16" height="16" />
-                                                    <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+                                                <input type="file" accept=".json,.zip" className="hidden" onChange={handleImport} />
                                                 </label>
                                                 <button onClick={() => { setShowGlobalSettings(false); setPurgeConfirm(true); }} className="flex-1 flex items-center justify-center h-10 bg-red-950/20 text-red-500 hover:text-white hover:bg-red-600/40 rounded-xl transition-all border border-red-900/50 hover:border-red-500 hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]">
                                                     <IconTrash width="16" height="16" />
@@ -291,7 +297,7 @@ const HubView = memo(({
                                                     </div>
                                                 )}
 
-                                                <div className="absolute inset-0 border-l border-white/20 border-r border-black/20 pointer-events-none rounded-[2px]"></div>
+                                                <div className="absolute inset-0 border-l border-l-white/20 border-r border-r-black/20 pointer-events-none rounded-[2px]"></div>
                                             </div>
                                         </div>
                                     );
@@ -307,6 +313,7 @@ const HubView = memo(({
                         <div className="flex items-center gap-3">
                             <button disabled={selectedMangas.size === 0} onClick={() => setShowBatchEditModal(true)} className="p-2.5 bg-theme-600 text-white rounded-xl hover:scale-105 hover:shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition"><IconSettings width="20" height="20" /></button>
                             <button disabled={selectedMangas.size === 0} onClick={() => setBatchDeleteConfirm(true)} className="p-2.5 bg-red-600 text-white rounded-xl hover:scale-105 hover:shadow-[0_0_15px_rgba(220,38,38,0.6)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition"><IconTrash width="20" height="20" /></button>
+                            <button onClick={handleSelectAll} className="px-4 py-2.5 bg-theme-600 text-white hover:bg-theme-500 transition font-black text-xs uppercase tracking-widest rounded-xl border border-theme-400 active:scale-95 shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)]">{allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}</button>
                             <div className="w-px h-8 bg-theme-800/80 mx-1"></div>
                             <button onClick={toggleSelectionMode} className="px-4 py-2.5 text-theme-400 hover:text-theme-200 transition font-black text-xs uppercase tracking-widest bg-theme-950/50 rounded-xl border border-theme-800/50 active:scale-95">Annuler</button>
                         </div>

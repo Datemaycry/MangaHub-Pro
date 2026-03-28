@@ -1,17 +1,18 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useRef } from 'react';
 import {
     IconChevronLeft, IconSinglePage, IconDoublePage, IconMaximize,
     IconBookmarkFilled, IconBookmarkOutline, IconMoon, IconSun
 } from './Icons';
-import { getCachedUrl } from '../utils';
+import { getCachedUrl, triggerHaptic } from '../utils';
 
 // Sous-composant pour afficher une image du lecteur
-const ReaderImage = memo(({ file, className = "", style = {}, isBackground = false }) => {
+const ReaderImage = memo(React.forwardRef(({ file, className = "", style = {}, isBackground = false }, ref) => {
     const url = getCachedUrl(file);
     if (!url) return null;
     if (isBackground) return null;
-    return <img src={url} className={`reader-img gpu-accelerated ${className}`} style={style} />;
-});
+    return <img ref={ref} src={url} decoding="async" className={`reader-img gpu-accelerated ${className}`} style={style} />;
+}));
+ReaderImage.displayName = 'ReaderImage';
 
 // Sous-composant pour les miniatures de la barre de progression
 const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
@@ -20,11 +21,11 @@ const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
 });
 
 // Sous-composant pour afficher une page ou une double-page (avec animations 3D)
-const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "next", physicalStyles = null, isLandscape = true, hideAmbilight = false }) => {
+const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "next", isLandscape = true, hideAmbilight = false, singleRef, leftRef, rightRef }) => {
     if (!spread) return null;
     const isRTL = manga?.direction === 'rtl'; let animLeftClass = ""; let animRightClass = "";
     
-    if (!physicalStyles && isAnimating) {
+    if (isAnimating) {
         if (isRTL) { if (slideDir === 'next') animRightClass = 'animate-repli-right'; if (slideDir === 'prev') animLeftClass = 'animate-repli-left'; } 
         else { if (slideDir === 'next') animLeftClass = 'animate-repli-left'; if (slideDir === 'prev') animRightClass = 'animate-repli-right'; }
     }
@@ -34,10 +35,10 @@ const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "ne
             return (
                 <div className="flex w-full h-full perspective-[3000px] transform-style-[preserve-3d]">
                     {!hideAmbilight && <ReaderImage file={spread.center} isBackground={true} />}
-                    <div className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animLeftClass}`} style={physicalStyles?.left || {}}>
+                    <div ref={leftRef} className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animLeftClass}`}>
                         <div className="absolute top-0 left-0 w-[100vw] h-full flex justify-center items-center"><ReaderImage file={spread.center} /></div>
                     </div>
-                    <div className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animRightClass}`} style={physicalStyles?.right || {}}>
+                    <div ref={rightRef} className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animRightClass}`}>
                         <div className="absolute top-0 right-0 w-[100vw] h-full flex justify-center items-center"><ReaderImage file={spread.center} /></div>
                     </div>
                 </div>
@@ -46,7 +47,7 @@ const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "ne
             return (
                 <>
                     {!hideAmbilight && <ReaderImage file={spread.center} isBackground={true} />}
-                    <ReaderImage file={spread.center} style={physicalStyles?.single || {}} />
+                    <ReaderImage ref={singleRef} file={spread.center} />
                 </>
             );
         }
@@ -57,10 +58,10 @@ const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "ne
                 <div className="w-1/2 h-full overflow-hidden relative">{!hideAmbilight && spread.left && <ReaderImage file={spread.left} isBackground={true} />}</div>
                 <div className="w-1/2 h-full overflow-hidden relative">{!hideAmbilight && spread.right && <ReaderImage file={spread.right} isBackground={true} />}</div>
             </div>
-            <div className={`page-wrapper-left gpu-accelerated ${animLeftClass}`} style={physicalStyles?.left || {}}>
+            <div ref={leftRef} className={`page-wrapper-left gpu-accelerated ${animLeftClass}`}>
                 {spread.left ? <ReaderImage file={spread.left} className="img-left" /> : <div className="w-full h-full bg-black"></div>}
             </div>
-            <div className={`page-wrapper-right gpu-accelerated ${animRightClass}`} style={physicalStyles?.right || {}}>
+            <div ref={rightRef} className={`page-wrapper-right gpu-accelerated ${animRightClass}`}>
                 {spread.right ? <ReaderImage file={spread.right} className="img-right" /> : <div className="w-full h-full bg-black"></div>}
             </div>
         </div>
@@ -70,8 +71,7 @@ const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "ne
 const ReaderView = memo(({
     isNightMode, setIsNightMode, isExitingReader, zenMode, setZenMode, handleCloseReader, currentTime,
     toggleFullscreen, toggleBookmark, currentManga, cursor, handleSetCursor, edgeGlow, currentPages,
-    allSpreads, isLandscape, prevCursor, isPhysicalAnimating, slideDir, drag, physicalStyles,
-    handlePointerDown, handlePointerMove, handlePointerUp, handleWheel, showNextChapterOverlay,
+    allSpreads, isLandscape, prevCursor, slideDir, handleWheel, showNextChapterOverlay,
     setShowNextChapterOverlay, nextChapter, saveProgress, setCurrentManga, setCursor, markAsRead,
     toggleDisplayMode, showSpine, toggleSpine
 }) => {
@@ -79,12 +79,133 @@ const ReaderView = memo(({
     const [previewCursor, setPreviewCursor] = useState(cursor);
     const [isSliderActive, setIsSliderActive] = useState(false);
 
+    const [dragState, setDragState] = useState({ active: false, dir: null, targetCursor: null, snapping: false });
+    const dragData = useRef({ startX: 0, diffX: 0, progress: 0 });
+    const activeRefs = useRef({ single: null, left: null, right: null });
+    const dragRaf = useRef(null);
+
+    const applyPhysicalStyles = React.useCallback((p, dir, isSnapping = false) => {
+        const isRTL = currentManga?.direction === 'rtl';
+        const trans = isSnapping ? 'transform 0.4s cubic-bezier(0.15, 0.9, 0.3, 1), filter 0.4s' : 'none';
+        const filterStyle = `brightness(${1 - Math.sin(p * Math.PI) * 0.4})`;
+        
+        let sAngle = 0, sOrigin = 'center', side = null;
+        if (isRTL) {
+            if (dir === 'next') { sAngle = -90+(p*90); sOrigin = 'left center';  side = 'right'; }
+            if (dir === 'prev') { sAngle =  90-(p*90); sOrigin = 'right center'; side = 'left';  }
+        } else {
+            if (dir === 'next') { sAngle =  90-(p*90); sOrigin = 'right center'; side = 'left';  }
+            if (dir === 'prev') { sAngle = -90+(p*90); sOrigin = 'left center';  side = 'right'; }
+        }
+        
+        const mkFace = (el, angle, origin) => {
+            if (!el) return;
+            el.style.transform = `perspective(2000px) rotateY(${angle}deg)`;
+            el.style.transformOrigin = origin;
+            el.style.transition = trans;
+            el.style.filter = filterStyle;
+        };
+
+        if (activeRefs.current.single) mkFace(activeRefs.current.single, sAngle, sOrigin);
+        if (activeRefs.current.left) {
+            if (side === 'left') mkFace(activeRefs.current.left, sAngle, sOrigin);
+            else { activeRefs.current.left.style.transform = ''; activeRefs.current.left.style.filter = ''; }
+        }
+        if (activeRefs.current.right) {
+            if (side === 'right') mkFace(activeRefs.current.right, sAngle, sOrigin);
+            else { activeRefs.current.right.style.transform = ''; activeRefs.current.right.style.filter = ''; }
+        }
+    }, [currentManga]);
+
+    React.useLayoutEffect(() => {
+        if (dragState.active || dragState.snapping) {
+            applyPhysicalStyles(dragData.current.progress, dragState.dir, dragState.snapping);
+        }
+    }, [dragState.targetCursor, dragState.dir, dragState.active, dragState.snapping, applyPhysicalStyles]);
+
+    const handlePointerDown = (e) => {
+        if (showNextChapterOverlay || prevCursor !== null) return;
+        if (e.button && e.button !== 0) return;
+        if (e.target.tagName?.toLowerCase() === 'input' || e.target.closest('button')) return;
+        if (window.visualViewport && window.visualViewport.scale > 1.05) return;
+        if (e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId);
+        dragData.current = { startX: e.clientX, diffX: 0, progress: 0 };
+        setDragState({ active: true, dir: null, targetCursor: null, snapping: false });
+    };
+
+    const handlePointerMove = (e) => {
+        if (!dragState.active || !allSpreads || (window.visualViewport && window.visualViewport.scale > 1.05)) return;
+        const clientX = e.clientX; const isRTL = currentManga?.direction === 'rtl';
+        if (dragRaf.current) cancelAnimationFrame(dragRaf.current);
+        dragRaf.current = requestAnimationFrame(() => {
+            const diffX = clientX - dragData.current.startX; let dir = null;
+            if (diffX > 5) dir = isRTL ? 'next' : 'prev'; else if (diffX < -5) dir = isRTL ? 'prev' : 'next';
+            let targetCursor = null; if (dir === 'next') targetCursor = cursor + 1; if (dir === 'prev') targetCursor = cursor - 1;
+            let progress = 0;
+            if (targetCursor !== null && targetCursor >= 0 && targetCursor < allSpreads.length) progress = Math.min(1, Math.abs(diffX) / window.innerWidth);
+            else progress = Math.min(0.15, Math.abs(diffX) / (window.innerWidth * 3)); 
+            
+            dragData.current.diffX = diffX;
+            dragData.current.progress = progress;
+
+            setDragState(prev => {
+                if (prev.dir !== dir || prev.targetCursor !== targetCursor) {
+                    return { ...prev, dir, targetCursor };
+                }
+                applyPhysicalStyles(progress, dir, false);
+                return prev;
+            });
+        });
+    };
+
+    const DRAG_RESET = { active: false, dir: null, targetCursor: null, snapping: false };
+    const handlePointerUp = (e) => {
+        if (dragRaf.current) cancelAnimationFrame(dragRaf.current);
+        if (!dragState.active || !allSpreads) return;
+        if (e.target.hasPointerCapture?.(e.pointerId)) e.target.releasePointerCapture(e.pointerId);
+
+        const { diffX, progress, startX } = dragData.current;
+        const { targetCursor, dir } = dragState;
+
+        if (Math.abs(diffX) < 10) {
+            setDragState(DRAG_RESET);
+            const x = startX, w = window.innerWidth;
+            if (x > w*0.30 && x < w*0.70) { setZenMode(!zenMode); return; }
+            const isRTL = currentManga?.direction === 'rtl';
+            const goRight = x >= w*0.70, goLeft = x <= w*0.30;
+            const goNext = goRight ? !isRTL : goLeft ? isRTL : false;
+            const goPrev = goRight ? isRTL : goLeft ? !isRTL : false;
+            const side = goRight ? 'right' : 'left';
+            if (goNext) { if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, side); else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); } }
+            else if (goPrev) { if (showNextChapterOverlay) setShowNextChapterOverlay(false); else if (cursor > 0) handleSetCursor(cursor - 1, side); }
+            return;
+        }
+
+        if (progress > 0.20 && targetCursor !== null && targetCursor >= 0 && targetCursor < allSpreads.length) {
+            triggerHaptic(30);
+            setDragState(prev => ({ ...prev, active: false, snapping: true }));
+            applyPhysicalStyles(1, dir, true);
+            setTimeout(() => {
+                setCursor(targetCursor);
+                if (currentManga && allSpreads) saveProgress(currentManga.id, targetCursor, targetCursor >= allSpreads.length - 1, allSpreads.length);
+                setDragState(DRAG_RESET);
+            }, 400);
+        } else {
+            if (targetCursor !== null && targetCursor >= allSpreads.length && progress > 0.1) { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); }
+            setDragState(prev => ({ ...prev, active: false, snapping: true }));
+            applyPhysicalStyles(0, dir, true);
+            setTimeout(() => setDragState(DRAG_RESET), 400);
+        }
+    };
+
     useEffect(() => {
         if (!isSliderActive) setPreviewCursor(cursor);
     }, [cursor, isSliderActive]);
 
     const maxVal = Math.max(0, allSpreads.length - 1);
     const percent = maxVal > 0 ? (previewCursor / maxVal) * 100 : 0;
+    
+    const isPhysicalAnimating = dragState.active || dragState.snapping;
 
     return (
         <div 
@@ -163,9 +284,17 @@ const ReaderView = memo(({
                             </div>
                         )}
 
-                        {isPhysicalAnimating && drag.targetCursor !== null && (
+                        {isPhysicalAnimating && dragState.targetCursor !== null && (
                             <div className="absolute inset-0 z-40 flex justify-center items-center gpu-accelerated pointer-events-none">
-                                <SpreadDisplay spread={allSpreads[drag.targetCursor]} manga={currentManga} physicalStyles={physicalStyles} isLandscape={isLandscape} hideAmbilight={true} />
+                                <SpreadDisplay 
+                                    spread={allSpreads[dragState.targetCursor]} 
+                                    manga={currentManga} 
+                                    isLandscape={isLandscape} 
+                                    hideAmbilight={true} 
+                                    singleRef={el => activeRefs.current.single = el}
+                                    leftRef={el => activeRefs.current.left = el}
+                                    rightRef={el => activeRefs.current.right = el}
+                                />
                             </div>
                         )}
 

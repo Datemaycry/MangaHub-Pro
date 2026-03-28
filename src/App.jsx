@@ -9,14 +9,14 @@ import {
     MANGA_PROPS, DB_NAME, STORE_MANGAS, STORE_PAGES, 
     getSafeStorage, setSafeStorage, triggerHaptic, initDB, 
     blobToBase64Async, decodeFileToIDB, serializeFile, deserializeFile, 
-    getCachedUrl, SHELF_THEMES, EXT_MIME, globalImageCache
+    getCachedUrl, SHELF_THEMES, EXT_MIME, globalImageCache, getFileKey
 } from './utils';
 import HubView from './components/HubView';
 import ReaderView from './components/ReaderView';
 import MangaInspector from './components/MangaInspector';
 import { EditMangaModal, BatchEditModal, AddChapterModal } from './components/Forms';
 import { ToastNotification, LoadingOverlay, ConfirmModal, MangaActionsModal } from './components/Modals';
-import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, memo, useDeferredValue } from 'react';
 import JSZip from 'jszip';
 import { polyfill } from 'mobile-drag-drop';
 
@@ -90,6 +90,7 @@ const App = () => {
     const [view, setView] = useState('hub');
     const [mangas, setMangas] = useState([]);
     const [search, setSearch] = useState("");
+    const deferredSearch = useDeferredValue(search);
     const [currentManga, setCurrentManga] = useState(null);
     
     // ANTI-RACE CONDITION : On garde une trace instantanée du marque-page
@@ -113,9 +114,6 @@ const App = () => {
     const [slideDir, setSlideDir] = useState('next'); 
     const [prevCursor, setPrevCursor] = useState(null); 
     const [edgeGlow, setEdgeGlow] = useState(null); 
-
-    const [drag, setDrag] = useState({ active: false, startX: 0, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false });
-    const dragRaf = useRef(null);
 
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const [purgeConfirm, setPurgeConfirm] = useState(false);
@@ -210,50 +208,87 @@ const App = () => {
         return spreads;
     }, [currentManga, currentPages, effectiveLandscape]);
 
+    const nextChapter = useMemo(() => {
+        if (!currentManga) return null;
+        const ctx = currentManga.group
+            ? mangas.filter(m => m.group === currentManga.group)
+            : [...mangas];
+        ctx.sort((a,b) => a.title.localeCompare(b.title, undefined, {numeric: true}));
+        const i = ctx.findIndex(m => m.id === currentManga.id);
+        return i >= 0 && i < ctx.length - 1 ? ctx[i + 1] : null;
+    }, [currentManga, mangas]);
+
     useEffect(() => {
-        const neededFiles = new Set();
+        const neededKeys = new Set();
         
-        mangas.forEach(m => {
-            if (m.coverDouble) neededFiles.add(m.coverDouble);
-            if (m.coverStart) neededFiles.add(m.coverStart);
-            if (m.coverEnd) neededFiles.add(m.coverEnd);
-            if (m.cover) neededFiles.add(m.cover);
-        });
+        if (view === 'hub') {
+            mangas.forEach(m => {
+                if (m.coverDouble) neededKeys.add(getFileKey(m.coverDouble));
+                if (m.coverStart) neededKeys.add(getFileKey(m.coverStart));
+                if (m.coverEnd) neededKeys.add(getFileKey(m.coverEnd));
+                if (m.cover) neededKeys.add(getFileKey(m.cover));
+            });
+        }
 
         if (view === 'reader' && allSpreads.length > 0) {
             const addSpreadToNeeded = (index) => {
                 const spread = allSpreads[index];
                 if (spread) {
-                    if (spread.left) neededFiles.add(spread.left);
-                    if (spread.right) neededFiles.add(spread.right);
-                    if (spread.center) neededFiles.add(spread.center);
+                    if (spread.left) neededKeys.add(getFileKey(spread.left));
+                    if (spread.right) neededKeys.add(getFileKey(spread.right));
+                    if (spread.center) neededKeys.add(getFileKey(spread.center));
                 }
             };
 
             for (let i = cursor - 2; i <= cursor + 3; i++) addSpreadToNeeded(i);
             if (prevCursor !== null) addSpreadToNeeded(prevCursor);
-            if (drag.targetCursor !== null) addSpreadToNeeded(drag.targetCursor);
         }
 
-        for (const [file, url] of globalImageCache.entries()) {
-            if (!neededFiles.has(file)) {
+        if (view === 'reader' && nextChapter) {
+            if (nextChapter.coverDouble) neededKeys.add(getFileKey(nextChapter.coverDouble));
+            if (nextChapter.coverStart) neededKeys.add(getFileKey(nextChapter.coverStart));
+            if (nextChapter.cover) neededKeys.add(getFileKey(nextChapter.cover));
+        }
+
+        for (const [key, url] of globalImageCache.entries()) {
+            if (!neededKeys.has(key)) {
                 URL.revokeObjectURL(url);
-                globalImageCache.delete(file);
+                globalImageCache.delete(key);
             }
         }
 
         if (view === 'reader') {
-            neededFiles.forEach(file => {
-                if (!globalImageCache.has(file)) {
+            const preloadFile = (file) => {
+                if (!file) return;
+                const key = getFileKey(file);
+                if (key && !globalImageCache.has(key)) {
                     const url = getCachedUrl(file);
                     if (url) {
                         const img = new Image();
+                        img.decoding = "async";
                         img.src = url; 
                     }
                 }
-            });
+            };
+            
+            for (let i = cursor; i <= cursor + 3; i++) {
+                const spread = allSpreads[i];
+                if (spread) {
+                    preloadFile(spread.left);
+                    preloadFile(spread.right);
+                    preloadFile(spread.center);
+                }
+            }
         }
-    }, [cursor, prevCursor, drag.targetCursor, allSpreads, view, mangas]);
+    }, [cursor, prevCursor, allSpreads, view, mangas]);
+
+    const toggleSelectAllMangas = useCallback((allFilteredIds) => {
+        setSelectedMangas(prev => {
+            if (prev.size === allFilteredIds.length && allFilteredIds.length > 0) return new Set();
+            return new Set(allFilteredIds);
+        });
+        triggerHaptic(20);
+    }, []);
 
     const markAsRead = useCallback(async (manga) => {
         const db = await initDB();
@@ -365,20 +400,28 @@ const App = () => {
                 delete pagesMap[meta.id]; 
                 
                 const metaToEncode = { ...meta };
-                if (metaToEncode.coverDouble) metaToEncode.coverDouble = await encodeFile(metaToEncode.coverDouble);
-                if (metaToEncode.coverStart) metaToEncode.coverStart = await encodeFile(metaToEncode.coverStart);
-                if (metaToEncode.coverEnd) metaToEncode.coverEnd = await encodeFile(metaToEncode.coverEnd);
-                if (metaToEncode.cover) metaToEncode.cover = await encodeFile(metaToEncode.cover);
+                const coverKeys = ['coverDouble', 'coverStart', 'coverEnd', 'cover'];
+                for (const k of coverKeys) {
+                    if (metaToEncode[k]) metaToEncode[k] = await encodeFile(metaToEncode[k]);
+                }
                 
                 const metaStr = JSON.stringify(metaToEncode);
                 chunks.push(new Blob([metaStr.slice(0,-1) + `,"pages":[`], { type: "application/json" }));
                 
-                for (let pIdx = 0; pIdx < rawPages.length; pIdx++) {
-                    if (pIdx % 10 === 0) setImportProgress(`Compression Manga (${i+1}/${allMangasMeta.length}) - Page ${pIdx}...`);
-                    const encodedPage = await encodeFile(rawPages[pIdx]);
-                    chunks.push(new Blob([JSON.stringify(encodedPage) + (pIdx < rawPages.length - 1 ? "," : "")], { type: "application/json" }));
-                    rawPages[pIdx] = null;
-                    if (pIdx % 5 === 0) await new Promise(r => setTimeout(r, 5));
+                const BATCH_SIZE = 15;
+                for (let pIdx = 0; pIdx < rawPages.length; pIdx += BATCH_SIZE) {
+                    setImportProgress(`Compression Manga (${i+1}/${allMangasMeta.length}) - Pages ${pIdx}...`);
+                    const end = Math.min(pIdx + BATCH_SIZE, rawPages.length);
+                    const batchProms = [];
+                    for (let k = pIdx; k < end; k++) batchProms.push(encodeFile(rawPages[k]));
+                    const encodedBatch = await Promise.all(batchProms);
+                    
+                    for (let k = 0; k < encodedBatch.length; k++) {
+                        const globalIdx = pIdx + k;
+                        chunks.push(new Blob([JSON.stringify(encodedBatch[k]) + (globalIdx < rawPages.length - 1 ? "," : "")], { type: "application/json" }));
+                        rawPages[globalIdx] = null;
+                    }
+                    await new Promise(r => setTimeout(r, 0));
                 }
                 
                 chunks.push(new Blob(["]}" + (i < allMangasMeta.length - 1 ? ",\n" : "")], { type: "application/json" }));
@@ -389,25 +432,42 @@ const App = () => {
             setImportProgress("Assemblage final...");
             await new Promise(r => setTimeout(r, 50));
             
-            const finalBlob = new Blob(chunks, { type: "application/json" });
+            const jsonBlob = new Blob(chunks, { type: "application/json" });
+
+            setImportProgress("Compression ZIP...");
+            await new Promise(r => setTimeout(r, 50));
+            const zip = new JSZip();
+            zip.file("MangaHub_Backup.json", jsonBlob);
+            const finalBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 9 } });
+
             const url = URL.createObjectURL(finalBlob);
             const a = document.createElement("a"); 
             a.style.display = "none";
             a.href = url; 
-            a.download = `MangaHub_Backup.json`; 
+            a.download = `MangaHub_Backup.zip`; 
             document.body.appendChild(a); 
             a.click();
             document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
             
-            setImportProgress(null); setLoading(false); setShowGlobalSettings(false); showToast("Sauvegarde exportée avec succès", "success");
+            setImportProgress(null); setLoading(false); setShowGlobalSettings(false); showToast("Sauvegarde ZIP exportée avec succès", "success");
         } catch (err) { console.error(err); showToast("Erreur lors de l'export.", "error"); setLoading(false); setImportProgress(null); }
     };
 
     const handleImport = async (e) => {
-        const file = e.target.files[0]; if (!file) return;
+        let file = e.target.files[0]; if (!file) return;
         setLoading(true); setImportProgress("Initialisation...");
         try {
+            if (file.name.endsWith('.zip') || file.type === 'application/zip' || file.type === 'application/x-zip-compressed') {
+                setImportProgress("Décompression de l'archive...");
+                const zip = new JSZip();
+                await zip.loadAsync(file);
+                const jsonFileInZip = zip.file("MangaHub_Backup.json");
+                if (!jsonFileInZip) {
+                    throw new Error("Le fichier MangaHub_Backup.json est introuvable dans l'archive ZIP.");
+                }
+                file = await jsonFileInZip.async("blob");
+            }
             await new Promise(r => setTimeout(r, 30));
             const db = await initDB();
             let processed = 0;
@@ -449,14 +509,14 @@ const App = () => {
                                 setImportProgress(`Restauration manga ${processed}...`);
 
                                 const meta = { ...item }; delete meta.pages;
-                                ['coverDouble','coverStart','coverEnd','cover'].forEach(k => {
-                                    if (meta[k]) meta[k] = decodeFileToIDB(meta[k]);
-                                });
+                                for (const k of ['coverDouble','coverStart','coverEnd','cover']) {
+                                    if (meta[k]) meta[k] = await decodeFileToIDB(meta[k]);
+                                }
                                 meta.totalPages = item.pages?.length || 0;
 
                                 const rawPages = item.pages || [];
                                 item.pages = null; 
-                                const BATCH = 8;
+                                const BATCH = 20;
                                 const decPages = new Array(rawPages.length);
                                 for (let b = 0; b < rawPages.length; b += BATCH) {
                                     const end = Math.min(b + BATCH, rawPages.length);
@@ -544,7 +604,10 @@ const App = () => {
         const db = await initDB();
         const tx = db.transaction(STORE_MANGAS, "readwrite");
         const store = tx.objectStore(STORE_MANGAS);
-        tx.oncomplete = () => { loadMangas(); };
+        let updatedManga = null;
+        tx.oncomplete = () => { 
+            if (updatedManga) setMangas(prev => prev.map(m => m.id === mangaId ? updatedManga : m)); 
+        };
         store.get(mangaId).onsuccess = (e) => {
             const manga = e.target.result;
             if (manga) {
@@ -552,13 +615,15 @@ const App = () => {
                 if (currentTotalSpreads > 0) manga.totalSpreads = currentTotalSpreads;
                 if (latestBookmarkRef.current !== undefined) manga.bookmark = latestBookmarkRef.current;
                 if (isFinished) { manga.bookmark = null; latestBookmarkRef.current = null; }
-                manga.lastRead = Date.now(); store.put(manga);
+                manga.lastRead = Date.now();
+                updatedManga = manga;
+                store.put(manga);
                 if (isFinished && currentManga && currentManga.id === mangaId && currentManga.bookmark != null) {
                     setCurrentManga(prev => ({...prev, bookmark: null}));
                 }
             }
         };
-    }, [currentManga, loadMangas]);
+    }, [currentManga]);
 
     useEffect(() => {
         if (view === 'reader' && currentManga && allSpreads) {
@@ -579,7 +644,10 @@ const App = () => {
             const manga = ev.target.result;
             if (manga) { manga.bookmark = newBookmark; tx.objectStore(STORE_MANGAS).put(manga); }
         };
-        tx.oncomplete = () => { loadMangas(); showToast(newBookmark !== null ? "Marque-page ajouté" : "Marque-page retiré", "info"); };
+        tx.oncomplete = () => { 
+            setMangas(prev => prev.map(m => m.id === currentManga.id ? { ...m, bookmark: newBookmark } : m));
+            showToast(newBookmark !== null ? "Marque-page ajouté" : "Marque-page retiré", "info"); 
+        };
     };
 
     const executeUpdateManga = async (e) => {
@@ -686,7 +754,7 @@ const App = () => {
         const allAvailableTags = Array.from(tagsSet).sort();
         
         let filtered = normalizedMangas.filter(m => {
-            const matchSearch = m.title.toLowerCase().includes(search.toLowerCase()) || (m.group && m.group.toLowerCase().includes(search.toLowerCase()));
+            const matchSearch = m.title.toLowerCase().includes(deferredSearch.toLowerCase()) || (m.group && m.group.toLowerCase().includes(deferredSearch.toLowerCase()));
             const matchTags = activeTags.length === 0 || activeTags.every(t => m.tags.includes(t));
             const matchBookmark = showBookmarksOnly ? (m.bookmark != null) : true;
             return matchSearch && matchTags && matchBookmark;
@@ -717,7 +785,7 @@ const App = () => {
         });
 
         return { shelves: sortedShelves, flattened, allAvailableTags };
-    }, [mangas, search, activeTags, showBookmarksOnly]);
+    }, [mangas, deferredSearch, activeTags, showBookmarksOnly]);
 
     const prevOrientation = useRef(effectiveLandscape);
     const prevSpreadsRef = useRef(allSpreads);
@@ -794,100 +862,6 @@ const App = () => {
         }
     }, [view, cursor, allSpreads, currentManga, showNextChapterOverlay]);
 
-    const isPhysicalAnimating = drag.active || drag.snapping;
-    let physicalStyles = null;
-    if (isPhysicalAnimating) {
-        const isRTL = currentManga?.direction === 'rtl';
-        const p = drag.progress;
-        const trans = drag.snapping ? 'transform 0.4s cubic-bezier(0.15, 0.9, 0.3, 1), filter 0.4s' : 'none';
-        const filterStyle = `brightness(${1 - Math.sin(p * Math.PI) * 0.4})`;
-        const mkFace = (angle, origin) => ({ transform: `perspective(2000px) rotateY(${angle}deg)`, transformOrigin: origin, transition: trans, filter: filterStyle });
-        let sAngle = 0, sOrigin = 'center', side = null;
-        if (isRTL) {
-            if (drag.dir === 'next') { sAngle = -90+(p*90); sOrigin = 'left center';  side = 'right'; }
-            if (drag.dir === 'prev') { sAngle =  90-(p*90); sOrigin = 'right center'; side = 'left';  }
-        } else {
-            if (drag.dir === 'next') { sAngle =  90-(p*90); sOrigin = 'right center'; side = 'left';  }
-            if (drag.dir === 'prev') { sAngle = -90+(p*90); sOrigin = 'left center';  side = 'right'; }
-        }
-        physicalStyles = {
-            single: mkFace(sAngle, sOrigin),
-            left:   side === 'left'  ? mkFace(sAngle, sOrigin) : {},
-            right:  side === 'right' ? mkFace(sAngle, sOrigin) : {}
-        };
-    }
-
-    const handlePointerDown = (e) => {
-        if (showNextChapterOverlay || prevCursor !== null) return;
-        if (e.button && e.button !== 0) return;
-        if (e.target.tagName?.toLowerCase() === 'input' || e.target.closest('button')) return;
-        if (window.visualViewport && window.visualViewport.scale > 1.05) return;
-        if (e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId);
-        setDrag({ active: true, startX: e.clientX, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false });
-    };
-
-    const handlePointerMove = (e) => {
-        if (!drag.active || !allSpreads || (window.visualViewport && window.visualViewport.scale > 1.05)) return;
-        const clientX = e.clientX; const isRTL = currentManga?.direction === 'rtl';
-        if (dragRaf.current) cancelAnimationFrame(dragRaf.current);
-        dragRaf.current = requestAnimationFrame(() => {
-            setDrag(prev => {
-                const diffX = clientX - prev.startX; let dir = null;
-                if (diffX > 5) dir = isRTL ? 'next' : 'prev'; else if (diffX < -5) dir = isRTL ? 'prev' : 'next';
-                let targetCursor = null; if (dir === 'next') targetCursor = cursor + 1; if (dir === 'prev') targetCursor = cursor - 1;
-                let progress = 0;
-                if (targetCursor !== null && targetCursor >= 0 && targetCursor < allSpreads.length) progress = Math.min(1, Math.abs(diffX) / window.innerWidth);
-                else progress = Math.min(0.15, Math.abs(diffX) / (window.innerWidth * 3)); 
-                return { ...prev, diffX, dir, targetCursor, progress };
-            });
-        });
-    };
-
-    const DRAG_RESET = { active: false, startX: 0, diffX: 0, progress: 0, dir: null, targetCursor: null, snapping: false };
-    const handlePointerUp = (e) => {
-        if (dragRaf.current) cancelAnimationFrame(dragRaf.current);
-        if (!drag.active || !allSpreads) return;
-        if (e.target.hasPointerCapture?.(e.pointerId)) e.target.releasePointerCapture(e.pointerId);
-
-        if (Math.abs(drag.diffX) < 10) {
-            setDrag(DRAG_RESET);
-            const x = drag.startX, w = window.innerWidth;
-            if (x > w*0.30 && x < w*0.70) { setZenMode(!zenMode); return; }
-            const isRTL = currentManga?.direction === 'rtl';
-            const goRight = x >= w*0.70, goLeft = x <= w*0.30;
-            const goNext = goRight ? !isRTL : goLeft ? isRTL : false;
-            const goPrev = goRight ? isRTL : goLeft ? !isRTL : false;
-            const side = goRight ? 'right' : 'left';
-            if (goNext) { if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, side); else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); } }
-            else if (goPrev) { if (showNextChapterOverlay) setShowNextChapterOverlay(false); else if (cursor > 0) handleSetCursor(cursor - 1, side); }
-            return;
-        }
-
-        if (drag.progress > 0.20 && drag.targetCursor !== null && drag.targetCursor >= 0 && drag.targetCursor < allSpreads.length) {
-            triggerHaptic(30);
-            setDrag(prev => ({ ...prev, active: false, snapping: 'forward', progress: 1 }));
-            setTimeout(() => {
-                const fc = drag.targetCursor; setCursor(fc);
-                if (currentManga && allSpreads) saveProgress(currentManga.id, fc, fc >= allSpreads.length - 1, allSpreads.length);
-                setDrag(DRAG_RESET);
-            }, 400);
-        } else {
-            if (drag.targetCursor !== null && drag.targetCursor >= allSpreads.length && drag.progress > 0.1) { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); }
-            setDrag(prev => ({ ...prev, active: false, snapping: 'backward', progress: 0 }));
-            setTimeout(() => setDrag(DRAG_RESET), 400);
-        }
-    };
-
-    const nextChapter = useMemo(() => {
-        if (!currentManga) return null;
-        const ctx = currentManga.group
-            ? mangas.filter(m => m.group === currentManga.group)
-            : [...mangas];
-        ctx.sort((a,b) => a.title.localeCompare(b.title, undefined, {numeric: true}));
-        const i = ctx.findIndex(m => m.id === currentManga.id);
-        return i >= 0 && i < ctx.length - 1 ? ctx[i + 1] : null;
-    }, [currentManga, mangas]);
-
     const { inspectorPrev, inspectorNext } = useMemo(() => {
         if (!inspectingManga) return { inspectorPrev: null, inspectorNext: null };
         let ctx = inspectingManga.group
@@ -914,7 +888,8 @@ const App = () => {
                     setShowTags={setShowTags} activeTags={activeTags} setActiveTags={setActiveTags} libraryStructure={libraryStructure}
                     handleOpenManga={handleOpenManga} setActiveCardMenu={setActiveCardMenu}
                     isSelectionMode={isSelectionMode} selectedMangas={selectedMangas}
-                    toggleMangaSelection={toggleMangaSelection} toggleSelectionMode={toggleSelectionMode} setShowBatchEditModal={setShowBatchEditModal}
+                    toggleMangaSelection={toggleMangaSelection} toggleSelectAllMangas={toggleSelectAllMangas} 
+                    toggleSelectionMode={toggleSelectionMode} setShowBatchEditModal={setShowBatchEditModal}
                     setBatchDeleteConfirm={setBatchDeleteConfirm} setInspectingManga={handleInspectManga}
                 />
             )}
@@ -924,8 +899,7 @@ const App = () => {
                     isNightMode={isNightMode} setIsNightMode={setIsNightMode} isExitingReader={isExitingReader} zenMode={zenMode} setZenMode={setZenMode}
                     handleCloseReader={handleCloseReader} currentTime={currentTime} toggleFullscreen={toggleFullscreen} toggleBookmark={toggleBookmark} currentManga={currentManga}
                     cursor={cursor} handleSetCursor={handleSetCursor} edgeGlow={edgeGlow} currentPages={currentPages} allSpreads={allSpreads} isLandscape={effectiveLandscape}
-                    prevCursor={prevCursor} isPhysicalAnimating={isPhysicalAnimating} slideDir={slideDir} drag={drag} physicalStyles={physicalStyles}
-                    handlePointerDown={handlePointerDown} handlePointerMove={handlePointerMove} handlePointerUp={handlePointerUp} handleWheel={handleWheel}
+                    prevCursor={prevCursor} slideDir={slideDir} handleWheel={handleWheel}
                     showNextChapterOverlay={showNextChapterOverlay} setShowNextChapterOverlay={setShowNextChapterOverlay} nextChapter={nextChapter} saveProgress={saveProgress}
                     setCurrentManga={setCurrentManga} setCursor={setCursor} markAsRead={markAsRead} toggleDisplayMode={toggleDisplayMode}
                     showSpine={showSpine} toggleSpine={() => setShowSpine(p => !p)}

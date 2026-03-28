@@ -1,9 +1,9 @@
 import React, { useState, useEffect, memo } from 'react';
 import JSZip from 'jszip';
-import { IconSettings, IconUpload } from './Icons';
+import { IconSettings, IconUpload, IconChevronLeft, IconChevronRight, IconTrash, IconCheck } from './Icons';
 import { 
     initDB, serializeFile, triggerHaptic, EXT_MIME, 
-    STORE_MANGAS, STORE_PAGES, getCachedUrl 
+    STORE_MANGAS, STORE_PAGES, getCachedUrl, optimizeImage
 } from '../utils';
 
 const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
@@ -131,6 +131,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
     const [rawPages, setRawPages] = useState([]);
     const [isManualSorting, setIsManualSorting] = useState(false);
     const [sortMethod, setSortMethod] = useState('name-asc');
+    const [selectedPages, setSelectedPages] = useState(new Set());
 
     useEffect(() => {
         return () => {
@@ -158,20 +159,27 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
         try {
             const zip = new JSZip(); await zip.loadAsync(file);
             let metadata = null; if (zip.file("metadata.json")) { try { metadata = JSON.parse(await zip.file("metadata.json").async("string")); } catch(e) {} }
-            const filesMap = {}; const imagePromises = [];
+            const filesMap = {}; 
+            const zipEntries = [];
             zip.forEach((relativePath, zipEntry) => {
                 if (!zipEntry.dir && !relativePath.includes('__MACOSX') && !relativePath.endsWith('metadata.json')) {
-                    const p = zipEntry.async('arraybuffer').then(buffer => {
-                        const fileName = relativePath.split('/').pop();
-                        const ext = fileName.split('.').pop().toLowerCase();
-                        const blob = new Blob([buffer], { type: EXT_MIME[ext] || 'image/jpeg' });
-                        blob.name = fileName;
-                        filesMap[relativePath] = blob; return blob;
-                    });
-                    imagePromises.push(p);
+                    zipEntries.push({ relativePath, zipEntry });
                 }
             });
-            await Promise.all(imagePromises);
+            
+            for (let i = 0; i < zipEntries.length; i++) {
+                if (i % 5 === 0) {
+                    setImportProgress(`Extraction fichier ${i+1}/${zipEntries.length}...`);
+                    await new Promise(r => setTimeout(r, 0)); // Permet à l'UI de s'actualiser
+                }
+                const { relativePath, zipEntry } = zipEntries[i];
+                const buffer = await zipEntry.async('arraybuffer');
+                const fileName = relativePath.split('/').pop();
+                const ext = fileName.split('.').pop().toLowerCase();
+                const blob = new Blob([buffer], { type: EXT_MIME[ext] || 'image/jpeg' });
+                blob.name = fileName;
+                filesMap[relativePath] = blob;
+            }
             if (metadata) {
                 setImportProgress("Restauration..."); 
                 setFormTitle(metadata.title || ""); 
@@ -205,16 +213,22 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
             const newTags = formTags.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
             const finalGroup = formGroup.trim() || null;
             
-            const sCoverDouble = await serializeFile(coverDoubleFile);
-            const sCoverStart = await serializeFile(coverStartFile);
-            const sCoverEnd = await serializeFile(coverEndFile);
-            const fallbackCover = coverStartFile || coverDoubleFile;
-            const sCover = await serializeFile(fallbackCover);
+            // Optimisation des couvertures (max 1600px, qualité 85%)
+            const optCoverDouble = coverDoubleFile ? await optimizeImage(coverDoubleFile, 1600, 0.85) : null;
+            const optCoverStart = coverStartFile ? await optimizeImage(coverStartFile, 1600, 0.85) : null;
+            const optCoverEnd = coverEndFile ? await optimizeImage(coverEndFile, 1600, 0.85) : null;
+            const optCoverFallback = optCoverStart || optCoverDouble;
+
+            const sCoverDouble = await serializeFile(optCoverDouble);
+            const sCoverStart = await serializeFile(optCoverStart);
+            const sCoverEnd = await serializeFile(optCoverEnd);
+            const sCover = await serializeFile(optCoverFallback);
             
             const sOrderedPages = [];
             for(let i=0; i<orderedPages.length; i++){
                 setImportProgress(`Optimisation page ${i+1}/${orderedPages.length}`);
-                sOrderedPages.push(await serializeFile(orderedPages[i]));
+                const optimizedPage = await optimizeImage(orderedPages[i], 1600, 0.80);
+                sOrderedPages.push(await serializeFile(optimizedPage));
             }
             
             const db = await initDB();
@@ -232,42 +246,54 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
         } catch (error) { console.error(error); setLoading(false); setImportProgress(null); showToast("Erreur lors de l'importation.", "error"); }
     };
 
-    const DragAndDropSort = () => {
-        const handleDragStart = (e, index) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', index); };
-        const handleDragOver = (e, index) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
-        const handleDrop = (e, index) => {
-            e.preventDefault(); e.stopPropagation();
-            const draggedIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
-            if (!isNaN(draggedIdx) && draggedIdx !== index) {
-                const newPages = [...orderedPages];
-                const item = newPages.splice(draggedIdx, 1)[0];
-                newPages.splice(index, 0, item);
-                setOrderedPages(newPages);
-                setSortMethod('custom');
-            }
-        };
-        if (!isManualSorting) return null;
-        return (
-            <div className="fixed inset-0 z-[400] bg-black/95 p-4 sm:p-8 lg:p-12 flex flex-col animate-fade backdrop-blur-md">
-                <div className="flex justify-between items-center mb-8 border-b border-theme-600/30 pb-6 flex-none animate-in w-full mx-auto md:px-8">
-                    <div><h3 className="text-lg sm:text-2xl font-black uppercase text-theme-400 tracking-widest" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>Ordre manuel</h3><p className="text-xs text-theme-300/60 uppercase mt-2 font-bold">Maintenez appuyé pour glisser-déposer</p></div>
-                    <button type="button" onClick={() => setIsManualSorting(false)} className="bg-theme-600 text-white border border-theme-400 px-6 py-3 sm:px-8 sm:py-4 rounded-2xl text-xs font-black uppercase transition-all shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] hover:scale-105 active:scale-95">TERMINER</button>
-                </div>
-                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-20 animate-in w-full mx-auto md:px-8">
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 sm:gap-6 lg:gap-8">
-                        {orderedPages.map((f, i) => (
-                            <div key={f.name + i} draggable onDragStart={(e) => handleDragStart(e, i)} onDragOver={(e) => handleDragOver(e, i)} onDrop={(e) => handleDrop(e, i)}
-                                className="relative aspect-[3/4.5] bg-black rounded-xl sm:rounded-2xl overflow-hidden border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.5)] hover:border-theme-400 transition-all cursor-move group select-none gpu-accelerated"
-                            >
-                                <StackThumbnail file={f} />
-                                <div className="absolute top-1.5 left-1.5 bg-black/80 backdrop-blur-md text-theme-400 font-black text-[10px] sm:text-xs min-w-[24px] h-[24px] flex items-center justify-center rounded-lg border border-theme-500/50 shadow-[0_0_10px_rgba(var(--theme-rgb),0.4)]">{i + 1}</div>
-                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent p-3 pt-8 pointer-events-none"><p className="text-[9px] sm:text-[10px] text-theme-100 font-bold truncate text-center drop-shadow-[0_0_5px_rgba(0,0,0,1)] opacity-70 group-hover:opacity-100">{f.name}</p></div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        );
+    const handleDragStart = (e, index) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', index); };
+    const handleDragOver = (e, index) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+    const handleDrop = (e, index) => {
+        e.preventDefault(); e.stopPropagation();
+        const draggedIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        if (!isNaN(draggedIdx) && draggedIdx !== index) {
+            const newPages = [...orderedPages];
+            const item = newPages.splice(draggedIdx, 1)[0];
+            newPages.splice(index, 0, item);
+            setOrderedPages(newPages);
+            setSortMethod('custom');
+        }
+    };
+
+    const togglePageSelection = (e, index) => {
+        e.preventDefault(); e.stopPropagation();
+        setSelectedPages(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) next.delete(index);
+            else next.add(index);
+            return next;
+        });
+    };
+
+    const deleteSelectedPages = () => {
+        const newPages = orderedPages.filter((_, i) => !selectedPages.has(i));
+        setOrderedPages(newPages);
+        setSelectedPages(new Set());
+        setSortMethod('custom');
+    };
+
+    const handleMoveStep = (e, index, direction) => {
+        e.preventDefault(); e.stopPropagation();
+        const toIndex = index + direction;
+        if (toIndex < 0 || toIndex >= orderedPages.length) return;
+        const newPages = [...orderedPages];
+        const item = newPages.splice(index, 1)[0];
+        newPages.splice(toIndex, 0, item);
+        setOrderedPages(newPages);
+        setSortMethod('custom');
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedPages.size === orderedPages.length) {
+            setSelectedPages(new Set());
+        } else {
+            setSelectedPages(new Set(orderedPages.map((_, i) => i)));
+        }
     };
 
     return (
@@ -346,7 +372,50 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                     </div>
                 </form>
             </div>
-            <DragAndDropSort />
+            {isManualSorting && (
+                <div className="fixed inset-0 z-[400] bg-black/95 p-4 sm:p-8 lg:p-12 flex flex-col animate-fade backdrop-blur-md">
+                    <div className="flex justify-between items-center mb-8 border-b border-theme-600/30 pb-6 flex-none animate-in w-full mx-auto md:px-8">
+                        <div><h3 className="text-lg sm:text-2xl font-black uppercase text-theme-400 tracking-widest" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>Ordre manuel</h3><p className="text-xs text-theme-300/60 uppercase mt-2 font-bold">Maintenez appuyé pour glisser-déposer</p></div>
+                        <button type="button" onClick={() => { setIsManualSorting(false); setSelectedPages(new Set()); }} className="bg-theme-600 text-white border border-theme-400 px-6 py-3 sm:px-8 sm:py-4 rounded-2xl text-xs font-black uppercase transition-all shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] hover:scale-105 active:scale-95">TERMINER</button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-20 animate-in w-full mx-auto md:px-8">
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 sm:gap-6 lg:gap-8">
+                            {orderedPages.map((f, i) => {
+                                const isSelected = selectedPages.has(i);
+                                return (
+                                <div key={f.name + i} draggable onDragStart={(e) => handleDragStart(e, i)} onDragOver={(e) => handleDragOver(e, i)} onDrop={(e) => handleDrop(e, i)}
+                                    className={`relative aspect-[3/4.5] bg-black rounded-xl sm:rounded-2xl overflow-hidden border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.5)] hover:border-theme-400 transition-all cursor-move group select-none gpu-accelerated touch-none ${isSelected ? 'ring-2 ring-red-500 opacity-80 scale-[0.98]' : ''}`}
+                                    style={{ WebkitTouchCallout: 'none' }}
+                                >
+                                    <div className="absolute inset-0 pointer-events-none"><StackThumbnail file={f} /></div>
+                                    <div className="absolute top-1.5 left-1.5 bg-black/80 backdrop-blur-md text-theme-400 font-black text-[10px] sm:text-xs min-w-[24px] h-[24px] flex items-center justify-center rounded-lg border border-theme-500/50 shadow-[0_0_10px_rgba(var(--theme-rgb),0.4)] z-10 pointer-events-none">{i + 1}</div>
+                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent p-3 pt-8 pointer-events-none z-10"><p className="text-[9px] sm:text-[10px] text-theme-100 font-bold truncate text-center drop-shadow-[0_0_5px_rgba(0,0,0,1)] opacity-70 group-hover:opacity-100">{f.name}</p></div>
+                                    
+                                    <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => togglePageSelection(e, i)} className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all z-20 pointer-events-auto shadow-[0_0_10px_rgba(0,0,0,0.5)] ${isSelected ? 'border-red-500 bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.8)]' : 'border-white/50 bg-black/50 text-transparent hover:border-red-400 hover:text-red-400'}`}>
+                                        {isSelected ? <IconCheck width="12" height="12" strokeWidth="3" /> : <IconTrash width="12" height="12" />}
+                                    </button>
+
+                                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+                                        <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => handleMoveStep(e, i, -1)} disabled={i === 0} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/80 text-white flex items-center justify-center border border-white/20 disabled:opacity-0 active:scale-95 shadow-[0_0_10px_rgba(0,0,0,0.5)] pointer-events-auto"><IconChevronLeft width="16" height="16" /></button>
+                                        <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => handleMoveStep(e, i, 1)} disabled={i === orderedPages.length - 1} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/80 text-white flex items-center justify-center border border-white/20 disabled:opacity-0 active:scale-95 shadow-[0_0_10px_rgba(0,0,0,0.5)] pointer-events-auto"><IconChevronRight width="16" height="16" /></button>
+                                    </div>
+                                </div>
+                            )})}
+                        </div>
+                    </div>
+                    {selectedPages.size > 0 && (
+                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl border border-red-500/50 shadow-[0_20px_50px_rgba(220,38,38,0.5)] px-6 py-4 rounded-2xl flex items-center gap-6 z-[500] animate-slide-up">
+                            <span className="font-black text-white text-sm whitespace-nowrap drop-shadow-[0_0_8px_rgba(220,38,38,0.8)]">{selectedPages.size} sélectionnée(s)</span>
+                            <div className="flex items-center gap-3">
+                                <button onClick={deleteSelectedPages} className="p-2.5 bg-red-600 text-white rounded-xl hover:scale-105 hover:shadow-[0_0_15px_rgba(220,38,38,0.6)] transition" title="Supprimer les pages sélectionnées"><IconTrash width="20" height="20" /></button>
+                                <button onClick={toggleSelectAll} className="px-4 py-2.5 bg-theme-600 text-white hover:bg-theme-500 transition font-black text-xs uppercase tracking-widest rounded-xl border border-theme-400 active:scale-95 shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)]">{selectedPages.size === orderedPages.length ? 'Tout désélectionner' : 'Tout sélectionner'}</button>
+                                <div className="w-px h-8 bg-theme-800/80 mx-1"></div>
+                                <button onClick={() => setSelectedPages(new Set())} className="px-4 py-2.5 text-theme-400 hover:text-theme-200 transition font-black text-xs uppercase tracking-widest bg-theme-950/50 rounded-xl border border-theme-800/50 active:scale-95">Annuler</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </>
     );
 });

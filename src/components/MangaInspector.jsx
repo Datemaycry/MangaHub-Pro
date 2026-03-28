@@ -304,7 +304,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                                             {isDouble ? (
                                                 <div className="w-full h-full" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: bgPosSpine }}></div>
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center border-l border-white/20 border-r border-black/80">
+                                                <div className="w-full h-full flex items-center justify-center border-l border-l-white/20 border-r border-r-black/80">
                                                     <span className="text-white font-black text-[12px] uppercase tracking-widest whitespace-nowrap" style={{ transform: 'rotate(90deg)' }}>{manga.title}</span>
                                                 </div>
                                             )}

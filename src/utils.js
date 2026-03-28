@@ -31,14 +31,19 @@ const getArrayBuffer = (blob) => new Promise((resolve, reject) => {
     r.onload = () => resolve(r.result); r.onerror = reject; r.readAsArrayBuffer(blob);
 });
 
-export const decodeFileToIDB = (f) => {
+export const decodeFileToIDB = async (f) => {
     if (!f || !f.data) return f;
-    const bin = atob(f.data);
-    const buf = new ArrayBuffer(bin.length);
-    const view = new Uint8Array(buf);
-    for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-    f.data = null;
-    return { _isArrayBuffer: true, buffer: buf, type: f.type, name: f.name };
+    try {
+        const res = await fetch(`data:${f.type || 'application/octet-stream'};base64,${f.data}`);
+        const buf = await res.arrayBuffer();
+        f.data = null;
+        return { _isArrayBuffer: true, buffer: buf, type: f.type, name: f.name };
+    } catch(e) {
+        const bin = atob(f.data);
+        const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+        f.data = null;
+        return { _isArrayBuffer: true, buffer: bytes.buffer, type: f.type, name: f.name };
+    }
 };
 
 export const serializeFile = async (f) => {
@@ -72,6 +77,33 @@ export const deserializeFile = (f) => {
 
 export const EXT_MIME = { png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
 
+export const optimizeImage = (file, maxWidth = 1600, quality = 0.8) => new Promise((resolve) => {
+    if (!file || !file.type || !file.type.startsWith('image/')) return resolve(file);
+    if (file.type === 'image/gif') return resolve(file); // Garder l'animation des GIFs
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+            if (!blob) return resolve(file);
+            blob.name = file.name ? file.name.replace(/\.[^/.]+$/, ".webp") : "image.webp";
+            resolve(blob);
+        }, 'image/webp', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+});
+
 export const createImageUrl = (file) => {
     if (!file || !(file instanceof Blob || file instanceof File) || file.size === 0) return null;
     let b = file;
@@ -89,13 +121,23 @@ export const clearImageCache = () => {
     globalImageCache.clear();
 };
 
+export const getFileKey = (file) => {
+    if (!file) return null;
+    if (typeof file === 'string') return file;
+    const name = file.name || 'unnamed';
+    const size = file.buffer ? file.buffer.byteLength : (file.size || 0);
+    return `${name}_${size}`;
+};
+
 export const getCachedUrl = (file) => {
     if (!file) return null;
-    if (globalImageCache.has(file)) return globalImageCache.get(file);
+    const key = getFileKey(file);
+    if (!key) return null;
+    if (globalImageCache.has(key)) return globalImageCache.get(key);
     const blob = deserializeFile(file);
     if (!blob) return null;
     const url = createImageUrl(blob);
-    if (url) globalImageCache.set(file, url);
+    if (url) globalImageCache.set(key, url);
     return url;
 };
 
