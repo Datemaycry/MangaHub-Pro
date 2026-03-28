@@ -7,7 +7,6 @@ const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
     return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : null;
 });
 
-// 👉 Ajout de inspectingCoords pour l'animation depuis l'étagère
 const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMenu, onPrev, onNext, hasPrev, hasNext, inspectingCoords }) => {
     if (!manga) return null;
 
@@ -53,13 +52,20 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     const [spinDirection, setSpinDirection] = useState(isRTL ? -1 : 1);
     const [isOpening, setIsOpening] = useState(false);
     
-    // 👉 Les "Refs" pour faire voler les éléments (Bibliothèque <-> Centre)
     const bookContainerRef = useRef(null);
     const uiRef = useRef(null);
     const [isClosing, setIsClosing] = useState(false);
 
     const dragInfo = useRef({ startX: 0, startY: 0, initRotY: 0, initRotX: 0, hasDragged: false });
     const spinTimeoutRef = useRef(null);
+
+    // CORRECTION: Réinitialiser l'état quand le manga change (Tomb Raider)
+    useEffect(() => {
+        setRotY(isRTL ? -15 : 15);
+        setRotX(0);
+        setIsOpening(false);
+        setAutoSpin(true);
+    }, [manga.id, isRTL]);
 
     useEffect(() => {
         if (!autoSpin) return;
@@ -103,20 +109,23 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         spinTimeoutRef.current = setTimeout(() => setAutoSpin(true), 1500);
     };
 
-    // 📖 OUVERTURE CLASSIQUE (Fondu au noir sans zoom)
+    // 📖 OPTION 2 : L'OUVERTURE PHYSIQUE
     const handleReadClick = (e) => {
         if (e) e.stopPropagation();
         if (dragInfo.current && dragInfo.current.hasDragged) { dragInfo.current.hasDragged = false; return; }
         if (isOpening) return;
 
         setAutoSpin(false);
-        setRotX(0); // Livre droit
-        setRotY(0); // Livre de face
+        setRotX(5); 
+        setRotY(spineIsRight ? 25 : -25); 
         setIsOpening(true);
 
+        if (typeof window.triggerHaptic === 'function') window.triggerHaptic(50);
+
+        // CORRECTION : On passe "null" pour l'évenement, et "true" pour skipAnimation !
         setTimeout(() => {
-            onRead(manga);
-        }, 600);
+            onRead(manga, null, true);
+        }, 800);
     };
 
     // 🪃 LE BOOMERANG (Tomb Raider -> Bibliothèque)
@@ -184,14 +193,24 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     // --- ANIMATION STYLE TOMB RAIDER (SLIDE 3D) ---
     const [trState, setTrState] = useState('idle');
 
+    // CORRECTION : On attend que le manga.id change pour déclencher l'animation d'entrée
     useLayoutEffect(() => {
-        const dir = trState === 'leaving-next' ? 'next' : trState === 'leaving-prev' ? 'prev' : null;
-        if (!dir) return;
-        setTrState(`entering-${dir}`);
-        let f2;
-        const f1 = requestAnimationFrame(() => { f2 = requestAnimationFrame(() => setTrState('idle')); });
-        return () => { cancelAnimationFrame(f1); cancelAnimationFrame(f2); };
-    }, [manga.id, trState]);
+        setTrState(prev => {
+            if (prev === 'leaving-next') return 'entering-next';
+            if (prev === 'leaving-prev') return 'entering-prev';
+            return prev;
+        });
+    }, [manga.id]);
+
+    useLayoutEffect(() => {
+        if (trState.startsWith('entering-')) {
+            let f2;
+            const f1 = requestAnimationFrame(() => {
+                f2 = requestAnimationFrame(() => setTrState('idle'));
+            });
+            return () => { cancelAnimationFrame(f1); cancelAnimationFrame(f2); };
+        }
+    }, [trState]);
 
     const handlePrev = useCallback((e) => {
         e.stopPropagation();
@@ -216,8 +235,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     return (
         <div className={`fixed inset-0 z-[1500] flex items-center justify-center transition-all duration-400 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'} ${isClosing ? 'bg-transparent backdrop-blur-none' : 'bg-black/80 backdrop-blur-xl'}`} onClick={handleClose}>
             
-            {/* 👉 Fondu classique au noir */}
-            <div className={`absolute inset-0 bg-black z-[2000] pointer-events-none transition-opacity duration-500 ease-out ${isOpening ? 'opacity-100' : 'opacity-0'}`}></div>
+            <div className={`absolute inset-0 bg-black z-[2000] pointer-events-none transition-opacity ease-in ${isOpening ? 'opacity-100 duration-300 delay-500' : 'opacity-0 duration-500'}`}></div>
 
             <button onClick={handlePrev} disabled={!hasPrev} className={`absolute left-2 sm:left-8 md:left-12 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center backdrop-blur-md border transition-all z-[1600] ${isOpening ? 'opacity-0 pointer-events-none' : ''} ${hasPrev ? 'bg-black/50 hover:bg-theme-600/80 text-white border-white/10 hover:border-theme-400 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] cursor-pointer active:scale-95' : 'bg-black/20 text-white/20 border-white/5 shadow-none cursor-not-allowed opacity-50'}`}>
                 <IconChevronLeft width="32" height="32" />
@@ -228,11 +246,10 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
 
             <div className="relative flex items-center justify-center pointer-events-none" style={{ width: '600px', height: '850px', transform: `scale(${globalScale})`, transformOrigin: 'center center' }}>
                 
-                <div className={`relative flex flex-col items-center justify-center w-full px-4 pointer-events-auto ${isOpening ? 'transition-opacity duration-150 opacity-0' : 'opacity-100'}`} onClick={e => e.stopPropagation()}>
+                <div className="relative flex flex-col items-center justify-center w-full px-4 pointer-events-auto" onClick={e => e.stopPropagation()}>
                     <div style={{ perspective: '2000px' }} className="flex justify-center items-center z-[1900] h-[520px] w-full mt-4">
                         <div style={{ ...trStyle, transformStyle: 'preserve-3d' }}>
                             
-                            {/* 👉 La ref pour le vol est ici, mais SANS le Plongeon */}
                             <div ref={bookContainerRef} className="origin-center flex justify-center items-center">
                                 <div id="inspect-book-container" className="relative cursor-grab active:cursor-grabbing group touch-none" 
                                     style={{ 
@@ -240,7 +257,8 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                                         animation: 'artifactFloat 6s ease-in-out infinite',
                                         animationPlayState: isOpening ? 'paused' : 'running',
                                         transformStyle: 'preserve-3d', 
-                                        transform: `scale(${scale}) translateY(0px)`
+                                        transform: `scale(${isOpening ? 4 : scale}) translateY(${isOpening ? '10%' : '0px'})`,
+                                        transition: isOpening ? 'transform 0.8s cubic-bezier(0.6, 0.05, 0.15, 0.95)' : 'none'
                                     }} 
                                     onClick={handleReadClick}
                                     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
@@ -251,12 +269,27 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                                         transition: isOpening ? 'transform 0.4s ease-out' : 'none' 
                                     }}>
                                         
-                                        <div className="absolute inset-0" style={{ transform: `translateZ(${bd/2}px)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+                                        <div className="absolute inset-0 z-10" style={{ 
+                                            transformOrigin: spineIsRight ? 'right center' : 'left center',
+                                            transform: `translateZ(${bd/2}px) ${isOpening ? `rotateY(${spineIsRight ? 110 : -110}deg)` : ''}`,
+                                            transition: isOpening ? 'transform 0.7s cubic-bezier(0.25, 1, 0.5, 1) 0.1s' : 'none',
+                                            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' 
+                                        }}>
                                             {isDouble ? (
                                                 <div className="w-full h-full bg-black" style={{ backgroundImage: `url(${coverUrl})`, backgroundSize: bgSizeFrontBack, backgroundPosition: bgPosFront }}></div>
                                             ) : (
                                                 <div className="w-full h-full bg-black"><StackThumbnail file={manga.coverStart || manga.cover} /></div>
                                             )}
+                                        </div>
+
+                                        <div className="absolute inset-0 bg-[#f9f9f9] border border-black/5" style={{ 
+                                            transform: `translateZ(${(bd/2) - 1}px)`,
+                                            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' 
+                                        }}>
+                                            <div className={`absolute inset-y-0 w-8 ${spineIsRight ? 'right-0 bg-gradient-to-l' : 'left-0 bg-gradient-to-r'} from-black/15 to-transparent`}></div>
+                                            <div className="w-full h-full flex items-center justify-center opacity-5">
+                                                <span className="font-black text-2xl rotate-45">MangaHub</span>
+                                            </div>
                                         </div>
 
                                         <div className="absolute inset-0" style={{ transform: `translateZ(${-bd/2}px) rotateY(180deg)`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
@@ -293,8 +326,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                         </div>
                     </div>
 
-                    {/* 👉 uiRef est attachée ici pour que le texte s'efface en premier */}
-                    <div ref={uiRef} className="flex flex-col items-center gap-6 w-full max-w-lg z-30 mt-6 transition-opacity">
+                    <div ref={uiRef} className={`flex flex-col items-center gap-6 w-full max-w-lg z-30 mt-6 transition-opacity ${isOpening ? 'opacity-0 duration-150 pointer-events-none' : 'opacity-100'}`}>
                         <div className="text-center px-4 w-full">
                             <span className="text-theme-400 font-black uppercase tracking-widest text-xs mb-2 block drop-shadow-md">
                                 {manga.group || "Volume Indépendant"}
