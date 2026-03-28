@@ -7,7 +7,7 @@ const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
     return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : null;
 });
 
-const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMenu, onPrev, onNext, hasPrev, hasNext, inspectingCoords }) => {
+const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMenu, onPrev, onNext, hasPrev, hasNext, inspectingCoords, startClosing = false }) => {
     if (!manga) return null;
 
     const [globalScale, setGlobalScale] = useState(1);
@@ -45,10 +45,10 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     const spineIsRight = isRTL;
 
     // --- LOGIQUE INTERACTION 3D ---
-    const [rotY, setRotY] = useState(isRTL ? -15 : 15);
-    const [rotX, setRotX] = useState(0);
+    const [rotY, setRotY] = useState(() => startClosing ? (isRTL ? -15 : 15) : (isRTL ? -90 : 90));
+    const [rotX, setRotX] = useState(() => startClosing ? 5 : 0);
     const [isDragging, setIsDragging] = useState(false);
-    const [autoSpin, setAutoSpin] = useState(true);
+    const [autoSpin, setAutoSpin] = useState(!startClosing);
     const [spinDirection, setSpinDirection] = useState(isRTL ? -1 : 1);
     const [isOpening, setIsOpening] = useState(false);
     
@@ -58,9 +58,20 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
 
     const dragInfo = useRef({ startX: 0, startY: 0, initRotY: 0, initRotX: 0, hasDragged: false });
     const spinTimeoutRef = useRef(null);
+    const [isMounted, setIsMounted] = useState(false);
+    const isFirstMount = useRef(true);
+
+    useEffect(() => {
+        const frame = requestAnimationFrame(() => setIsMounted(true));
+        return () => cancelAnimationFrame(frame);
+    }, []);
 
     // CORRECTION: Réinitialiser l'état quand le manga change (Tomb Raider)
     useEffect(() => {
+        if (isFirstMount.current) {
+            isFirstMount.current = false;
+            return;
+        }
         setRotY(isRTL ? -15 : 15);
         setRotX(0);
         setIsOpening(false);
@@ -134,6 +145,9 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         if (isClosing) return; 
         
         setIsClosing(true);
+        setAutoSpin(false);
+        setRotX(0);
+        setRotY(spineIsRight ? -90 : 90);
 
         if (inspectingCoords && bookContainerRef.current && uiRef.current) {
             const targetCenterX = inspectingCoords.left + (inspectingCoords.width / 2);
@@ -144,49 +158,69 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
             const moveX = (targetCenterX - screenCenterX) / globalScale;
             const moveY = (targetCenterY - screenCenterY) / globalScale;
             
-            const bookVisualWidth = MANGA_PROPS.faceW * globalScale * scale;
-            const targetScale = inspectingCoords.width / bookVisualWidth;
+            const bookVisualHeight = MANGA_PROPS.h * globalScale * scale;
+            const targetScale = inspectingCoords.height / bookVisualHeight;
 
             uiRef.current.style.transition = 'opacity 0.2s ease';
             uiRef.current.style.opacity = '0'; 
 
             bookContainerRef.current.style.transformOrigin = 'center center';
-            bookContainerRef.current.style.transition = 'transform 0.4s cubic-bezier(0.5, 0, 0.75, 0)'; 
+            bookContainerRef.current.style.transition = 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)'; 
             bookContainerRef.current.style.transform = `translate(${moveX}px, ${moveY}px) scale(${targetScale})`;
+        } else if (bookContainerRef.current && uiRef.current) {
+            uiRef.current.style.transition = 'opacity 0.2s ease';
+            uiRef.current.style.opacity = '0'; 
+            bookContainerRef.current.style.transition = 'opacity 0.3s ease';
+            bookContainerRef.current.style.opacity = '0';
         }
 
         setTimeout(() => {
             onClose();
-        }, 400);
+        }, 500);
     }, [isClosing, inspectingCoords, globalScale, scale, onClose]);
+
+    // Déclenche la fermeture si on vient du lecteur
+    useEffect(() => {
+        if (startClosing) {
+            const timer = requestAnimationFrame(() => {
+                handleClose();
+            });
+            return () => cancelAnimationFrame(timer);
+        }
+    }, [startClosing, handleClose]);
 
     // ✨ L'ENTRÉE MAGIQUE (Bibliothèque -> Tomb Raider)
     useLayoutEffect(() => {
-        if (!inspectingCoords || !bookContainerRef.current || !uiRef.current) return;
+        if (startClosing || !inspectingCoords || !bookContainerRef.current || !uiRef.current) return;
 
-        const targetWidth = MANGA_PROPS.faceW * globalScale * scale;
-        const targetHeight = MANGA_PROPS.h * globalScale * scale;
-        const targetLeft = (window.innerWidth - targetWidth) / 2;
-        const targetTop = (window.innerHeight - targetHeight) / 2;
+        const startCenterX = inspectingCoords.left + (inspectingCoords.width / 2);
+        const startCenterY = inspectingCoords.top + (inspectingCoords.height / 2);
+        const screenCenterX = window.innerWidth / 2;
+        const screenCenterY = window.innerHeight / 2;
 
-        const deltaX = inspectingCoords.left - targetLeft;
-        const deltaY = inspectingCoords.top - targetTop;
-        const deltaScale = inspectingCoords.width / targetWidth;
+        const deltaX = (startCenterX - screenCenterX) / globalScale;
+        const deltaY = (startCenterY - screenCenterY) / globalScale;
+
+        const bookVisualHeight = MANGA_PROPS.h * globalScale * scale;
+        const deltaScale = inspectingCoords.height / bookVisualHeight;
 
         bookContainerRef.current.style.transition = 'none';
+        bookContainerRef.current.style.transformOrigin = 'center center';
         bookContainerRef.current.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${deltaScale})`;
         uiRef.current.style.transition = 'none';
         uiRef.current.style.opacity = '0';
 
-        bookContainerRef.current.offsetHeight;
+        void bookContainerRef.current.offsetHeight;
 
         requestAnimationFrame(() => {
             if (!bookContainerRef.current || !uiRef.current) return;
             bookContainerRef.current.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
-            bookContainerRef.current.style.transform = 'translate(0, 0) scale(1)';
+            bookContainerRef.current.style.transform = 'translate(0px, 0px) scale(1)';
             
             uiRef.current.style.transition = 'opacity 0.4s ease 0.2s';
             uiRef.current.style.opacity = '1';
+            
+            setRotY(isRTL ? -15 : 15);
         });
     }, [inspectingCoords, globalScale, scale]);
 
@@ -233,14 +267,14 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     else if (trState === 'entering-prev') trStyle = { transition: 'none', transform: 'translateX(-40vw) translateZ(-600px) scale(0.6) rotateY(60deg)', opacity: 0 };
 
     return (
-        <div className={`fixed inset-0 z-[1500] flex items-center justify-center transition-all duration-400 ${isAnimatingOut ? 'opacity-0 pointer-events-none' : 'animate-fade'} ${isClosing ? 'bg-transparent backdrop-blur-none' : 'bg-black/80 backdrop-blur-xl'}`} onClick={handleClose}>
+        <div className={`fixed inset-0 z-[1500] flex items-center justify-center transition-all duration-[500ms] ease-out ${(isMounted && !isClosing && !isAnimatingOut) ? 'bg-black/80 backdrop-blur-xl' : 'bg-black/0 backdrop-blur-none'} ${isAnimatingOut || startClosing ? 'pointer-events-none' : ''}`} onClick={handleClose}>
             
             <div className={`absolute inset-0 bg-black z-[2000] pointer-events-none transition-opacity ease-in ${isOpening ? 'opacity-100 duration-300 delay-500' : 'opacity-0 duration-500'}`}></div>
 
-            <button onClick={handlePrev} disabled={!hasPrev} className={`absolute left-2 sm:left-8 md:left-12 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center backdrop-blur-md border transition-all z-[1600] ${isOpening ? 'opacity-0 pointer-events-none' : ''} ${hasPrev ? 'bg-black/50 hover:bg-theme-600/80 text-white border-white/10 hover:border-theme-400 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] cursor-pointer active:scale-95' : 'bg-black/20 text-white/20 border-white/5 shadow-none cursor-not-allowed opacity-50'}`}>
+            <button onClick={handlePrev} disabled={!hasPrev} className={`absolute left-2 sm:left-8 md:left-12 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center backdrop-blur-md border transition-all z-[2100] ${isOpening || isClosing ? 'opacity-0 pointer-events-none' : ''} ${hasPrev ? 'bg-black/50 hover:bg-theme-600/80 text-white border-white/10 hover:border-theme-400 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] cursor-pointer active:scale-95' : 'bg-black/20 text-white/20 border-white/5 shadow-none cursor-not-allowed opacity-50'}`}>
                 <IconChevronLeft width="32" height="32" />
             </button>
-            <button onClick={handleNext} disabled={!hasNext} className={`absolute right-2 sm:right-8 md:right-12 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center backdrop-blur-md border transition-all z-[1600] ${isOpening ? 'opacity-0 pointer-events-none' : ''} ${hasNext ? 'bg-black/50 hover:bg-theme-600/80 text-white border-white/10 hover:border-theme-400 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] cursor-pointer active:scale-95' : 'bg-black/20 text-white/20 border-white/5 shadow-none cursor-not-allowed opacity-50'}`}>
+            <button onClick={handleNext} disabled={!hasNext} className={`absolute right-2 sm:right-8 md:right-12 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center backdrop-blur-md border transition-all z-[2100] ${isOpening || isClosing ? 'opacity-0 pointer-events-none' : ''} ${hasNext ? 'bg-black/50 hover:bg-theme-600/80 text-white border-white/10 hover:border-theme-400 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] cursor-pointer active:scale-95' : 'bg-black/20 text-white/20 border-white/5 shadow-none cursor-not-allowed opacity-50'}`}>
                 <IconChevronRight width="32" height="32" />
             </button>
 
@@ -266,7 +300,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                                     <div className="w-full h-full relative" style={{ 
                                         transformStyle: 'preserve-3d', 
                                         transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)`,
-                                        transition: isOpening ? 'transform 0.4s ease-out' : 'none' 
+                                        transition: isDragging ? 'none' : (isOpening ? 'transform 0.4s ease-out' : (isClosing ? 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)' : 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)')) 
                                     }}>
                                         
                                         <div className="absolute inset-0 z-10" style={{ 
@@ -326,7 +360,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                         </div>
                     </div>
 
-                    <div ref={uiRef} className={`flex flex-col items-center gap-6 w-full max-w-lg z-30 mt-6 transition-opacity ${isOpening ? 'opacity-0 duration-150 pointer-events-none' : 'opacity-100'}`}>
+                    <div ref={uiRef} className={`flex flex-col items-center gap-6 w-full max-w-lg z-[2100] mt-6 transition-opacity ${isOpening ? 'opacity-0 duration-150 pointer-events-none' : 'opacity-100'}`}>
                         <div className="text-center px-4 w-full">
                             <span className="text-theme-400 font-black uppercase tracking-widest text-xs mb-2 block drop-shadow-md">
                                 {manga.group || "Volume Indépendant"}

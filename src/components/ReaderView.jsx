@@ -148,7 +148,7 @@ const ReaderView = memo(({
             if (diffX > 5) dir = isRTL ? 'next' : 'prev'; else if (diffX < -5) dir = isRTL ? 'prev' : 'next';
             let targetCursor = null; if (dir === 'next') targetCursor = cursor + 1; if (dir === 'prev') targetCursor = cursor - 1;
             let progress = 0;
-            if (targetCursor !== null && targetCursor >= 0 && targetCursor < allSpreads.length) progress = Math.min(1, Math.abs(diffX) / window.innerWidth);
+            if (targetCursor !== null && targetCursor >= 0 && targetCursor < allSpreads.length) progress = Math.min(1, Math.abs(diffX) / (window.innerWidth * 0.5));
             else progress = Math.min(0.15, Math.abs(diffX) / (window.innerWidth * 3)); 
             
             dragData.current.diffX = diffX;

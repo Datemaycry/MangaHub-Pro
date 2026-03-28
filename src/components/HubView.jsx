@@ -18,14 +18,14 @@ const HubView = memo(({
     setIsAdding, showGlobalSettings, setShowGlobalSettings, appTheme,
     setAppTheme, shelfTheme, setShelfTheme, handleExport, handleImport, setPurgeConfirm, shelfEngraving, setShelfEngraving,
     setActiveCardMenu, isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode, handleReorderManga,
-    toggleSelectAllMangas, setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga, deletingMangas
+    toggleSelectAllMangas, setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga, deletingMangas, inspectingMangaId
 }) => {
 
     const isIosSafari = /iphone|ipad|ipod/i.test(navigator.userAgent) && /safari/i.test(navigator.userAgent) && !/crios|fxios|opios|mercury/i.test(navigator.userAgent);
     const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
     const [showIosBanner, setShowIosBanner] = useState(() => isIosSafari && !isStandalone && !getSafeStorage('mangaHubIosBannerDismissed', ''));
     const [shelfRowsCount, setShelfRowsCount] = useState(1);
-
+    
     const [search, setSearch] = useState("");
     const deferredSearch = useDeferredValue(search);
     const [activeTags, setActiveTags] = useState([]); 
@@ -34,7 +34,7 @@ const HubView = memo(({
     const [sortOrder, setSortOrder] = useState(() => getSafeStorage('mangaHubSortOrder', 'group'));
 
     // OPTIMISATION : Mode sommeil. On ne met à jour les données que si l'étagère est visible.
-    const [displayMangas, setDisplayMangas] = useState(mangas);
+    const [displayMangas, setDisplayMangas] = useState(mangas || []);
     useEffect(() => {
         if (isActive) setDisplayMangas(mangas);
     }, [mangas, isActive]);
@@ -111,7 +111,7 @@ const HubView = memo(({
 
         return { shelves: sortedShelves, flattened, allAvailableTags };
     }, [displayMangas, activeTags, showBookmarksOnly, sortOrder]);
-    
+
     useEffect(() => {
         const updateRows = () => {
             const w = window.innerWidth;
@@ -128,19 +128,13 @@ const HubView = memo(({
         let resizeTimer;
         const handleResize = () => {
             clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(updateRows, 150); // Debounce de 150ms
+            resizeTimer = setTimeout(updateRows, 150);
         };
 
         updateRows();
         window.addEventListener('resize', handleResize);
         return () => { window.removeEventListener('resize', handleResize); clearTimeout(resizeTimer); };
     }, [libraryStructure.flattened.length]);
-
-    const handleSelectAll = () => {
-        const allFilteredIds = libraryStructure.flattened.filter(i => i.type === 'manga').map(i => i.data.id);
-        if (toggleSelectAllMangas) toggleSelectAllMangas(allFilteredIds);
-    };
-    const allSelected = libraryStructure.flattened.filter(i => i.type === 'manga').length > 0 && selectedMangas.size === libraryStructure.flattened.filter(i => i.type === 'manga').length;
 
     // OPTIMISATION : Un seul event listener en mémoire partagé par tous les livres
     const handleBookPointerEnter = useCallback((e) => {
@@ -158,15 +152,26 @@ const HubView = memo(({
         }
     }, []);
 
+    const handleSelectAll = () => {
+        const allFilteredIds = libraryStructure.flattened.filter(i => i.type === 'manga').map(i => i.data.id);
+        if (toggleSelectAllMangas) toggleSelectAllMangas(allFilteredIds);
+    };
+    const allSelected = libraryStructure.flattened.filter(i => i.type === 'manga').length > 0 && selectedMangas.size === libraryStructure.flattened.filter(i => i.type === 'manga').length;
+
     return (
         <div 
             className="flex flex-col h-full w-full mx-auto relative animate-hub-enter"
             style={{ 
                 transitionProperty: 'transform, opacity', 
                 transitionDuration: '500ms', 
-                transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
-                transform: animatingManga ? 'scale(0.96)' : 'scale(1)',
-                opacity: animatingManga ? 0.3 : 1
+                transitionTimingFunction: animatingManga?.phase.startsWith('closing') ? 'cubic-bezier(0.55, 0, 1, 0.45)' : 'cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: animatingManga && animatingManga.phase !== 'closing-end' ? 'scale(0.96)' : 'scale(1)',
+                opacity: animatingManga && animatingManga.phase !== 'closing-end' ? 0.3 : 1
+            }}
+            onClick={(e) => {
+                if (search.length > 1 && !e.target.closest('input')) {
+                    setSearch("");
+                }
             }}
         >
             <header 
@@ -192,8 +197,8 @@ const HubView = memo(({
                             </button>
                         )}
                         
-                        {libraryStructure.allAvailableTags.length > 0 && !isSelectionMode && (
-                            <button onClick={() => setShowTags(!showTags)} className={`w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${showTags || activeTags.length > 0 ? 'bg-theme-600/20 text-theme-300 border-theme-500' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title="Filtrer par tags">
+                        {!isSelectionMode && (
+                            <button onClick={() => setShowTags(!showTags)} className={`w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${showTags || activeTags.length > 0 || sortOrder !== 'group' || showBookmarksOnly ? 'bg-theme-600/20 text-theme-300 border-theme-500' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title="Trier et filtrer">
                                 <IconFilter width="18" height="18" />
                             </button>
                         )}
@@ -281,165 +286,231 @@ const HubView = memo(({
                     <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher..." className="bg-theme-950/40 border border-theme-500/40 rounded-full py-2 pl-10 pr-4 text-sm text-theme-100 outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.5)] focus:bg-theme-900/50 placeholder-theme-300/50 w-full transition-all duration-300 shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.2)]" />
                 </div>
             </header>
-            
-            <main className="flex-1 flex flex-col overflow-hidden relative bg-black" style={{ paddingLeft: 'max(0px, env(safe-area-inset-left))', paddingRight: 'max(0px, env(safe-area-inset-right))' }}>
-                <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden opacity-60">
-                    <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[1200px] max-h-[1200px] bg-theme-600 rounded-full mix-blend-screen filter blur-[60px] md:blur-[100px] opacity-30 aura-blob-1 gpu-accelerated"></div>
-                    <div className="absolute bottom-[-10%] right-[-10%] w-[70vw] h-[70vw] max-w-[1500px] max-h-[1500px] bg-theme-800 rounded-full mix-blend-screen filter blur-[80px] md:blur-[150px] opacity-40 aura-blob-2 gpu-accelerated"></div>
-                    <div className="absolute top-[20%] right-[20%] w-[50vw] h-[50vw] max-w-[1000px] max-h-[1000px] bg-theme-400 rounded-full mix-blend-screen filter blur-[50px] md:blur-[100px] opacity-20 aura-blob-3 gpu-accelerated"></div>
+
+            {showTags && !isSelectionMode && search.length < 2 && (
+                <div className="flex-none flex items-center justify-center gap-2 p-3 bg-black/50 border-b border-theme-900/50 animate-in">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-theme-400/60 mr-2">Trier par:</span>
+                    <button onClick={() => { setSortOrder('group'); setSafeStorage('mangaHubSortOrder', 'group'); }} className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors ${sortOrder === 'group' ? 'bg-theme-600/30 text-theme-200 border-theme-500' : 'bg-transparent text-theme-400/70 border-transparent hover:bg-white/10'}`}>Série</button>
+                    <button onClick={() => { setSortOrder('lastRead'); setSafeStorage('mangaHubSortOrder', 'lastRead'); }} className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors ${sortOrder === 'lastRead' ? 'bg-theme-600/30 text-theme-200 border-theme-500' : 'bg-transparent text-theme-400/70 border-transparent hover:bg-white/10'}`}>Dernière Lecture</button>
+                    <button onClick={() => { setSortOrder('dateAdded'); setSafeStorage('mangaHubSortOrder', 'dateAdded'); }} className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors ${sortOrder === 'dateAdded' ? 'bg-theme-600/30 text-theme-200 border-theme-500' : 'bg-transparent text-theme-400/70 border-transparent hover:bg-white/10'}`}>Date d'Ajout</button>
+                    <div className="w-px h-5 bg-white/10 mx-2"></div>
+                    <button onClick={() => setShowBookmarksOnly(p => !p)} className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors flex items-center gap-1.5 ${showBookmarksOnly ? 'bg-amber-600/30 text-amber-200 border-amber-500' : 'bg-transparent text-amber-400/70 border-transparent hover:bg-white/10'}`}>
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill={showBookmarksOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="3"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                        Marque-pages
+                    </button>
                 </div>
-
-                {showTags && libraryStructure.allAvailableTags.length > 0 && !isSelectionMode && (
-                    <div className="flex-none flex items-center gap-2 overflow-x-auto pb-4 pt-4 px-6 lg:px-10 custom-scrollbar relative z-20 animate-in bg-gradient-to-b from-black/80 to-transparent">
-                        <button onClick={() => setActiveTags([])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all animate-tag-pop ${activeTags.length === 0 ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`}>TOUS</button>
-                        {libraryStructure.allAvailableTags.map((t, idx) => {
-                            const isActive = activeTags.includes(t);
-                            return (<button key={t} onClick={() => setActiveTags(prev => isActive ? prev.filter(x => x !== t) : [...prev, t])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all animate-tag-pop ${isActive ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`} style={{ animationDelay: `${idx * 30}ms` }}>{t}</button>)
-                        })}
-                    </div>
-                )}
-
-                <div className="relative flex-1 w-full min-h-0 z-10 bg-[#050810]" style={{
-                    '--row-pt': 'clamp(15px, 2vh, 30px)', '--row-book-h': 'clamp(180px, 32vh, 360px)',
-                    '--board-h': 'clamp(20px, 3vh, 35px)', '--pillar-w': 'clamp(12px, 2.5vw, 30px)',
-                    '--row-total': 'calc(var(--row-pt) + var(--row-book-h) + var(--board-h))'
-                }}>
-                    
-                    {[['left-0','shadow-[8px_0_20px_rgba(0,0,0,0.5)] border-r','bg-gradient-to-r'],['right-0','shadow-[-8px_0_20px_rgba(0,0,0,0.5)] border-l','bg-gradient-to-l']].map(([pos, shadow, grad]) => {
-                        const t = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
-                        const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
-                        return (
-                            <div key={pos} className={`absolute top-0 bottom-0 ${pos} z-[25] pointer-events-none ${shadow} border-white/10 transition-all duration-500`} style={{ width: 'var(--pillar-w)', ...t.board }}>
-                                {t.texture && <div className={`absolute inset-0 ${t.texture} pointer-events-none`}></div>}
-                                {engravingDef.style.backgroundImage && (
-                                    <div className="absolute inset-0 pointer-events-none" style={engravingDef.style}></div>
-                                )}
-                                <div className={`absolute inset-0 ${grad} from-black/80 to-transparent pointer-events-none`}></div>
-                            </div>
-                        );
-                    })}
-
-                    <div className="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
-                        <div className="relative min-h-full w-full">
-                            {libraryStructure.flattened.length === 0 && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 pointer-events-none select-none px-8">
-                                    <div className="text-[64px] opacity-20">📚</div>
-                                    <div className="text-center">
-                                        <p className="text-theme-400 font-black uppercase tracking-widest text-sm mb-2" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.6)' }}>Bibliothèque vide</p>
-                                        <p className="text-white/30 text-xs font-bold">Appuie sur <span className="text-theme-400">+</span> pour ajouter ton premier manga</p>
+            )}
+            
+            {search.length > 1 ? (
+                <div className="flex-1 relative bg-black/30 overflow-y-auto custom-scrollbar animate-fade-fast">
+                    {searchResults.length === 0 ? (
+                        <div className="text-center p-12 text-white/50 font-bold">
+                            <div className="text-5xl mb-4">🤷</div>
+                            Aucun résultat pour <span className="text-theme-300">"{search}"</span>
+                        </div>
+                    ) : (
+                        <ul className="max-w-3xl mx-auto p-4 sm:p-6 space-y-3">
+                            {searchResults.map(m => (
+                                <li key={m.id} 
+                                    onClick={(e) => {
+                                        setSearch(""); 
+                                        setInspectingManga(m, e); 
+                                    }}
+                                    className="flex items-center gap-4 p-3 rounded-2xl bg-slate-900/50 hover:bg-slate-800/70 cursor-pointer transition-colors border border-slate-800 hover:border-theme-500/50 shadow-md"
+                                >
+                                    <div className="w-16 h-24 flex-none rounded-lg overflow-hidden bg-black shadow-lg border border-black/50">
+                                        <StackThumbnail file={m.cover} />
                                     </div>
-                                </div>
-                            )}
-                            <div className="absolute top-0 left-0 w-full flex flex-col pointer-events-none z-0">
-                                {Array.from({ length: shelfRowsCount }).map((_, i) => {
-                                    const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
-                                    const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
-                                    return (
-                                        <div key={i} className="w-full flex-none flex flex-col justify-end transition-all duration-500" style={{ height: 'var(--row-total)' }}>
-                                            <div className="w-full shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 border-t border-white/5" style={{ height: 'var(--board-h)', ...themeDef.board }}>
-                                                {themeDef.texture && <div className={`absolute inset-0 ${themeDef.texture} pointer-events-none`}></div>}
-                                                {engravingDef.style.backgroundImage && (
-                                                    <div className="absolute inset-0 pointer-events-none" style={engravingDef.style}></div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                    <div className="flex-1 overflow-hidden">
+                                        <h4 className="font-black text-white truncate text-base">{m.title}</h4>
+                                        <p className="text-xs text-theme-300/80 truncate font-bold mt-1">{m.group || 'Volume Indépendant'}</p>
+                                        {m.artist && <p className="text-[10px] text-theme-200/60 truncate font-bold mt-0.5">🎨 {m.artist}</p>}
+                                        {m.tags.length > 0 && <p className="text-[10px] text-theme-400/70 font-bold uppercase tracking-wider truncate mt-2">{m.tags.join(' • ')}</p>}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            ) : (
+                <main className="flex-1 flex flex-col overflow-hidden relative bg-black" style={{ paddingLeft: 'max(0px, env(safe-area-inset-left))', paddingRight: 'max(0px, env(safe-area-inset-right))' }}>
+                    <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden opacity-60">
+                        <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] max-w-[1200px] max-h-[1200px] bg-theme-600 rounded-full mix-blend-screen filter blur-[60px] md:blur-[100px] opacity-30 aura-blob-1 gpu-accelerated"></div>
+                        <div className="absolute bottom-[-10%] right-[-10%] w-[70vw] h-[70vw] max-w-[1500px] max-h-[1500px] bg-theme-800 rounded-full mix-blend-screen filter blur-[80px] md:blur-[150px] opacity-40 aura-blob-2 gpu-accelerated"></div>
+                        <div className="absolute top-[20%] right-[20%] w-[50vw] h-[50vw] max-w-[1000px] max-h-[1000px] bg-theme-400 rounded-full mix-blend-screen filter blur-[50px] md:blur-[100px] opacity-20 aura-blob-3 gpu-accelerated"></div>
+                    </div>
 
-                            <div className="relative z-10 flex flex-wrap content-start items-start justify-start w-full" style={{ paddingLeft: 'var(--pillar-w)', paddingRight: 'var(--pillar-w)', paddingBottom: 'max(6rem, env(safe-area-inset-bottom))' }}>
-                                {libraryStructure.flattened.map((item, i) => {
-                                    const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
-                                    const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
-                                    
-                                    if (item.type === 'separator') {
+                    {showTags && libraryStructure.allAvailableTags.length > 0 && !isSelectionMode && (
+                        <div className="flex-none flex items-center gap-2 overflow-x-auto pb-4 pt-4 px-6 lg:px-10 custom-scrollbar relative z-20 animate-in bg-gradient-to-b from-black/80 to-transparent">
+                            <button onClick={() => setActiveTags([])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all animate-tag-pop ${activeTags.length === 0 ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`}>TOUS</button>
+                            {libraryStructure.allAvailableTags.map((t, idx) => {
+                                const isActive = activeTags.includes(t);
+                                return (<button key={t} onClick={() => setActiveTags(prev => isActive ? prev.filter(x => x !== t) : [...prev, t])} className={`flex-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all animate-tag-pop ${isActive ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/30'}`} style={{ animationDelay: `${idx * 30}ms` }}>{t}</button>)
+                            })}
+                        </div>
+                    )}
+
+                    <div className="relative flex-1 w-full min-h-0 z-10 bg-[#050810]" style={{
+                        '--row-pt': 'clamp(15px, 2vh, 30px)', '--row-book-h': 'clamp(180px, 32vh, 360px)',
+                        '--board-h': 'clamp(20px, 3vh, 35px)', '--pillar-w': 'clamp(12px, 2.5vw, 30px)',
+                        '--row-total': 'calc(var(--row-pt) + var(--row-book-h) + var(--board-h))'
+                    }}>
+                        
+                        {[['left-0','shadow-[8px_0_20px_rgba(0,0,0,0.5)] border-r','bg-gradient-to-r'],['right-0','shadow-[-8px_0_20px_rgba(0,0,0,0.5)] border-l','bg-gradient-to-l']].map(([pos, shadow, grad]) => {
+                            const t = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
+                            const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
+                            return (
+                                <div key={pos} className={`absolute top-0 bottom-0 ${pos} z-[25] pointer-events-none ${shadow} border-white/10 transition-all duration-500`} style={{ width: 'var(--pillar-w)', ...t.board }}>
+                                    {t.texture && <div className={`absolute inset-0 ${t.texture} pointer-events-none`}></div>}
+                                    {engravingDef.style.backgroundImage && (
+                                        <div className="absolute inset-0 pointer-events-none" style={engravingDef.style}></div>
+                                    )}
+                                    <div className={`absolute inset-0 ${grad} from-black/80 to-transparent pointer-events-none`}></div>
+                                </div>
+                            );
+                        })}
+
+                        <div className="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
+                            <div className="relative min-h-full w-full">
+                                {libraryStructure.flattened.length === 0 && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 pointer-events-none select-none px-8">
+                                        <div className="text-[64px] opacity-20">📚</div>
+                                        <div className="text-center">
+                                            <p className="text-theme-400 font-black uppercase tracking-widest text-sm mb-2" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.6)' }}>Bibliothèque vide</p>
+                                            <p className="text-white/30 text-xs font-bold">Appuie sur <span className="text-theme-400">+</span> pour ajouter ton premier manga</p>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="absolute top-0 left-0 w-full flex flex-col pointer-events-none z-0">
+                                    {Array.from({ length: shelfRowsCount }).map((_, i) => {
+                                        const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
+                                        const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
                                         return (
-                                            <div key={item.key} className="flex-none flex items-end relative transition-all duration-500" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
-                                                <div className="flex-none shadow-[-5px_0_15px_rgba(0,0,0,0.8)] border-l border-t border-white/10 relative z-20 rounded-t-[2px] h-[90%]" style={{ width: 'clamp(10px, 1.5vh, 20px)', ...themeDef.bookend }}>
-                                                    <div className="w-1/2 h-full bg-black/30 absolute left-0 pointer-events-none"></div>
+                                            <div key={i} className="w-full flex-none flex flex-col justify-end transition-all duration-500" style={{ height: 'var(--row-total)' }}>
+                                                <div className="w-full shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 border-t border-white/5" style={{ height: 'var(--board-h)', ...themeDef.board }}>
+                                                    {themeDef.texture && <div className={`absolute inset-0 ${themeDef.texture} pointer-events-none`}></div>}
                                                     {engravingDef.style.backgroundImage && (
                                                         <div className="absolute inset-0 pointer-events-none" style={engravingDef.style}></div>
                                                     )}
                                                 </div>
                                             </div>
                                         );
-                                    }
+                                    })}
+                                </div>
 
-                                    const m = item.data;
-                                    const isSelected = isSelectionMode && selectedMangas.has(m.id);
-                                    
-                                    const isDouble = !!m.coverDouble;
-                                    const mainCover = m.coverStart || m.cover;
-                                    const wrapCoverUrl = getCachedUrl(m.coverDouble);
-                                    const frontCoverUrl = getCachedUrl(mainCover);
-
-                                    const bw = MANGA_PROPS.faceW;
-                                    const bh = MANGA_PROPS.h;
-                                    const bd = MANGA_PROPS.spineW;
-                                    const wrapTotalW = (bw * 2) + bd; 
-                                    const bgSizeSpine = `${(wrapTotalW / bd) * 100}% 100%`;
-
-                                    return (
-                                        <div key={m.id} className="flex-none flex items-end relative group/book hover:z-[100]" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
-                                            
-                                            {/* 👉 Ici, on transmet l'événement "e" avec "setInspectingManga(m, e)" */}
-                                                <div onPointerEnter={handleBookPointerEnter} onClick={(e) => { 
-                                                if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); return; }
-                                                setInspectingManga(m, e);
-                                            }} className={`manga-cover-image relative flex-none cursor-pointer z-10 rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : 'hover:-translate-y-5 hover:shadow-[0_20px_30px_-8px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.15)]'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))`, boxShadow: '0 8px 10px -4px rgba(0,0,0,0.8)', transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-                                                
-                                            <div className="peek-popup absolute top-2 left-[calc(100%+12px)] bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.3)] opacity-0 group-hover/book:opacity-100 group-hover/book:translate-y-0 pointer-events-none z-[200] overflow-hidden border border-white/10 flex flex-col w-[140px] sm:w-[180px] origin-top-left translate-y-2" style={{ transition: 'opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1)' }}>
-                                                    <div className="relative w-full bg-black border-b border-white/10" style={{ aspectRatio: `${bw} / ${bh}` }}>
-                                                        <StackThumbnail file={mainCover} contain={true} />
-                                                    </div>
-                                                    <div className="p-3 sm:p-4 flex flex-col bg-gradient-to-b from-transparent to-black/60">
-                                                        <span className="text-[8px] sm:text-[10px] text-theme-400 font-black uppercase tracking-widest truncate mb-1">{item.group || "Indépendant"}</span>
-                                                        <span className="text-[10px] sm:text-xs text-white font-bold leading-snug line-clamp-3" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>{m.title}</span>
+                                <div className="relative z-10 flex flex-wrap content-start items-start justify-start w-full" style={{ paddingLeft: 'var(--pillar-w)', paddingRight: 'var(--pillar-w)', paddingBottom: 'max(6rem, env(safe-area-inset-bottom))' }}>
+                                    {libraryStructure.flattened.map((item, i) => {
+                                        const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
+                                        const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
+                                        
+                                        if (item.type === 'separator') {
+                                            return (
+                                                <div key={item.key} className="flex-none flex items-end relative transition-all duration-500" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
+                                                    <div className="flex-none shadow-[-5px_0_15px_rgba(0,0,0,0.8)] border-l border-t border-white/10 relative z-20 rounded-t-[2px] h-[90%]" style={{ width: 'clamp(10px, 1.5vh, 20px)', ...themeDef.bookend }}>
+                                                        <div className="w-1/2 h-full bg-black/30 absolute left-0 pointer-events-none"></div>
+                                                        {engravingDef.style.backgroundImage && (
+                                                            <div className="absolute inset-0 pointer-events-none" style={engravingDef.style}></div>
+                                                        )}
                                                     </div>
                                                 </div>
+                                            );
+                                        }
+
+                                        const m = item.data;
+                                        const isSelected = isSelectionMode && selectedMangas.has(m.id);
+                                        const isInspected = inspectingMangaId === m.id;
+                                        const isDeleting = deletingMangas && deletingMangas.has(m.id);
+                                        
+                                        const isDouble = !!m.coverDouble;
+                                        const mainCover = m.coverStart || m.cover;
+                                        const wrapCoverUrl = getCachedUrl(m.coverDouble);
+                                        const frontCoverUrl = getCachedUrl(mainCover);
+
+                                        const bw = MANGA_PROPS.faceW;
+                                        const bh = MANGA_PROPS.h;
+                                        const bd = MANGA_PROPS.spineW;
+                                        const wrapTotalW = (bw * 2) + bd; 
+                                        const bgSizeSpine = `${(wrapTotalW / bd) * 100}% 100%`;
+
+                                        return (
+                                            <div key={m.id} className="flex-none flex items-end relative group/book hover:z-[100]" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
                                                 
-                                                <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[2px] bg-[#0f172a]">
-                                                    {isDouble && wrapCoverUrl ? (
-                                                        <div className="w-full h-full opacity-100 transition-opacity" style={{ backgroundImage: `url(${wrapCoverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: 'center center', backgroundRepeat: 'no-repeat' }}></div>
-                                                    ) : (
-                                                        <>
-                                                            {frontCoverUrl && <div className="absolute inset-0 scale-[1.5] opacity-90" style={{ backgroundImage: `url(${frontCoverUrl})`, backgroundSize: 'cover', backgroundPosition: 'left center', filter: 'blur(10px) saturate(1.5) brightness(0.6)' }}></div>}
-                                                            
-                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                                <span className={`${themeDef.text} group-hover/book:text-white font-black uppercase tracking-widest overflow-hidden whitespace-nowrap [text-overflow:clip] text-center leading-none transition-colors absolute`} style={{ transform: 'rotate(90deg)', textShadow: '0px 2px 5px rgba(0,0,0,1), 0px 0px 2px rgba(0,0,0,0.8)', fontSize: 'clamp(9px, 1.6vh, 13px)', width: 'max-content', padding: '0 10px' }}>
-                                                                    {m.title}
-                                                                </span>
-                                                            </div>
-                                                        </>
-                                                    )}
-
-                                                    {m.bookmark != null && !m.isFinished && (
-                                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[35%] max-w-[16px] min-w-[6px] h-[22%] bg-theme-500 shadow-[0_4px_10px_rgba(0,0,0,0.9)] z-40 border-x border-b border-white/40 animate-bookmark-in" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%)', backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.2))' }}></div>
-                                                    )}
-                                                    {m.isFinished && (
-                                                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[25%] max-w-[12px] min-w-[6px] aspect-square rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,1)] border border-white/80 z-40"></div>
-                                                    )}
-                                                </div>
-
-                                                {isSelectionMode && (
-                                                    <div className={`absolute inset-0 z-30 flex items-center justify-center transition-all rounded-[2px] ${isSelected ? 'bg-theme-900/60 backdrop-blur-[2px]' : 'bg-black/40 group-hover/book:bg-black/20'}`}>
-                                                        <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-theme-500 bg-theme-500 text-white shadow-[0_0_15px_rgba(var(--theme-rgb),0.8)]' : 'border-white/50 text-transparent'}`}>
-                                                            <IconCheck width="12" height="12" strokeWidth="3" />
+                                                {/* 👉 Ici, on transmet l'événement "e" avec "setInspectingManga(m, e)" */}
+                                                <div draggable={!isSelectionMode} onDragStart={(e) => {
+                                                    if (isSelectionMode) { e.preventDefault(); return; }
+                                                    e.dataTransfer.effectAllowed = 'move';
+                                                    e.dataTransfer.setData('text/plain', m.id);
+                                                    e.currentTarget.style.opacity = '0.4';
+                                                }} onDragEnd={(e) => {
+                                                    e.currentTarget.style.opacity = '';
+                                                }} onDragOver={(e) => {
+                                                    if (isSelectionMode) return;
+                                                    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+                                                }} onDrop={(e) => {
+                                                    if (isSelectionMode) return;
+                                                    e.preventDefault(); e.stopPropagation();
+                                                    const draggedId = e.dataTransfer.getData('text/plain');
+                                                    if (draggedId && draggedId !== m.id && handleReorderManga) { handleReorderManga(draggedId, m.id); }
+                                                }} onPointerEnter={handleBookPointerEnter} onClick={(e) => { 
+                                                    if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); return; }
+                                                    setInspectingManga(m, e);
+                                                }} className={`manga-cover-image relative flex-none cursor-pointer z-10 rounded-[2px] ${isDeleting ? 'scale-0 opacity-0 pointer-events-none' : isInspected ? 'opacity-0 pointer-events-none' : isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : 'hover:-translate-y-5 hover:shadow-[0_20px_30px_-8px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.15)]'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))`, boxShadow: '0 8px 10px -4px rgba(0,0,0,0.8)', transition: isDeleting ? 'transform 0.4s cubic-bezier(0.5, 0, 1, 0.5), opacity 0.4s ease-out' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease' }}>
+                                                    
+                                                <div className="peek-popup absolute top-2 left-[calc(100%+12px)] bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.3)] opacity-0 group-hover/book:opacity-100 group-hover/book:translate-y-0 pointer-events-none z-[200] overflow-hidden border border-white/10 flex flex-col w-[140px] sm:w-[180px] origin-top-left translate-y-2" style={{ transition: 'opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1)' }}>
+                                                        <div className="relative w-full bg-black border-b border-white/10" style={{ aspectRatio: `${bw} / ${bh}` }}>
+                                                            <StackThumbnail file={mainCover} contain={true} />
+                                                        </div>
+                                                        <div className="p-3 sm:p-4 flex flex-col bg-gradient-to-b from-transparent to-black/60">
+                                                            <span className="text-[8px] sm:text-[10px] text-theme-400 font-black uppercase tracking-widest truncate mb-1">{item.group || "Indépendant"}</span>
+                                                            <span className="text-[10px] sm:text-xs text-white font-bold leading-snug line-clamp-3" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>{m.title}</span>
+                                                        {m.artist && <span className="text-[8px] text-theme-200/80 font-bold truncate mt-1">🎨 {m.artist}</span>}
                                                         </div>
                                                     </div>
-                                                )}
+                                                    
+                                                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[2px] bg-[#0f172a]">
+                                                        {isDouble && wrapCoverUrl ? (
+                                                            <div className="w-full h-full opacity-100 transition-opacity" style={{ backgroundImage: `url(${wrapCoverUrl})`, backgroundSize: bgSizeSpine, backgroundPosition: 'center center', backgroundRepeat: 'no-repeat' }}></div>
+                                                        ) : (
+                                                            <>
+                                                                {frontCoverUrl && <div className="absolute inset-0 scale-[1.5] opacity-90" style={{ backgroundImage: `url(${frontCoverUrl})`, backgroundSize: 'cover', backgroundPosition: 'left center', filter: 'blur(10px) saturate(1.5) brightness(0.6)' }}></div>}
+                                                                
+                                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                                    <span className={`${themeDef.text} group-hover/book:text-white font-black uppercase tracking-widest overflow-hidden whitespace-nowrap [text-overflow:clip] text-center leading-none transition-colors absolute`} style={{ transform: 'rotate(90deg)', textShadow: '0px 2px 5px rgba(0,0,0,1), 0px 0px 2px rgba(0,0,0,0.8)', fontSize: 'clamp(9px, 1.6vh, 13px)', width: 'max-content', padding: '0 10px' }}>
+                                                                        {m.title}
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        )}
 
-                                                <div className="absolute inset-0 border-l border-l-white/20 border-r border-r-black/20 pointer-events-none rounded-[2px]"></div>
+                                                        {m.bookmark != null && !m.isFinished && (
+                                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[35%] max-w-[16px] min-w-[6px] h-[22%] bg-theme-500 shadow-[0_4px_10px_rgba(0,0,0,0.9)] z-40 border-x border-b border-white/40 animate-bookmark-in" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%)', backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.2))' }}></div>
+                                                        )}
+                                                        {m.isFinished && (
+                                                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[25%] max-w-[12px] min-w-[6px] aspect-square rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,1)] border border-white/80 z-40"></div>
+                                                        )}
+                                                    </div>
+
+                                                    {isSelectionMode && (
+                                                        <div className={`absolute inset-0 z-30 flex items-center justify-center transition-all rounded-[2px] ${isSelected ? 'bg-theme-900/60 backdrop-blur-[2px]' : 'bg-black/40 group-hover/book:bg-black/20'}`}>
+                                                            <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-theme-500 bg-theme-500 text-white shadow-[0_0_15px_rgba(var(--theme-rgb),0.8)]' : 'border-white/50 text-transparent'}`}>
+                                                                <IconCheck width="12" height="12" strokeWidth="3" />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="absolute inset-0 border-l border-l-white/20 border-r border-r-black/20 pointer-events-none rounded-[2px]"></div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                        );
+                                    })}
+                                </div>
                         </div>
                     </div>
                 </div>
+            </main>
+        )}
 
-                {isSelectionMode && (
+                {isSelectionMode && search.length < 2 && (
                     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl border border-theme-500/50 shadow-[0_20px_50px_rgba(var(--theme-rgb),0.5)] px-6 py-4 rounded-2xl flex items-center gap-6 z-[100] animate-slide-up">
                         <span className="font-black text-white text-sm whitespace-nowrap drop-shadow-[0_0_8px_rgba(var(--theme-rgb),0.8)]">{selectedMangas.size} sélectionné(s)</span>
                         <div className="flex items-center gap-3">
@@ -470,7 +541,6 @@ const HubView = memo(({
                         </div>
                     </div>
                 )}
-            </main>
         </div>
     );
 });

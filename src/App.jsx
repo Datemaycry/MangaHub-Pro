@@ -130,6 +130,7 @@ const App = () => {
     
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedMangas, setSelectedMangas] = useState(new Set());
+    const [isClosingReaderWithAnim, setIsClosingReaderWithAnim] = useState(false);
     const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
     const [deletingMangas, setDeletingMangas] = useState(new Set());
     const [showBatchEditModal, setShowBatchEditModal] = useState(false);
@@ -349,6 +350,7 @@ const App = () => {
         } else {
             setInspectingCoords(null);
         }
+        setIsClosingReaderWithAnim(false); // SÉCURITÉ : On s'assure que le mode "fermeture auto" est éteint
         setInspectingManga(manga);
     }, []);
 
@@ -356,17 +358,10 @@ const App = () => {
         if (animatingManga && animatingManga.phase === 'start') {
             const rAF = requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
-                    setAnimatingManga(prev => prev ? { ...prev, phase: 'expanding' } : null);
+                    setAnimatingManga(prev => (prev ? { ...prev, phase: 'expanding' } : null));
                 });
             });
             return () => cancelAnimationFrame(rAF);
-        }
-        // NOUVEAU : On déclenche l'animation de fermeture
-        if (animatingManga && animatingManga.phase === 'closing-start') {
-            const timer = setTimeout(() => {
-                setAnimatingManga(prev => prev ? { ...prev, phase: 'closing-end' } : null);
-            }, 16); // On attend un tick pour que React applique le state 'closing-start'
-            return () => clearTimeout(timer);
         }
     }, [animatingManga?.phase]);
 
@@ -391,12 +386,11 @@ const App = () => {
 
         if (lastOpenRect && currentManga) {
             setView('hub');
-            setAnimatingManga({ manga: currentManga, rect: lastOpenRect, phase: 'closing-start' });
-            setTimeout(() => {
-                setAnimatingManga(null);
-                setZenMode(false);
-                loadMangas();
-            }, 500);
+            setInspectingCoords(lastOpenRect);
+            setInspectingManga(currentManga);
+            setIsClosingReaderWithAnim(true);
+            setCurrentManga(null);
+            setZenMode(false);
         } else {
             setIsExitingReader(true);
             setTimeout(() => {
@@ -949,6 +943,7 @@ const App = () => {
                     isSelectionMode={isSelectionMode} selectedMangas={selectedMangas} toggleMangaSelection={toggleMangaSelection} 
                     toggleSelectAllMangas={toggleSelectAllMangas} toggleSelectionMode={toggleSelectionMode} setShowBatchEditModal={setShowBatchEditModal}
                     setBatchDeleteConfirm={setBatchDeleteConfirm} setInspectingManga={handleInspectManga} deletingMangas={deletingMangas}
+                    inspectingMangaId={inspectingManga?.id}
                 />
             </div>
 
@@ -971,6 +966,7 @@ const App = () => {
                     onClose={handleInspectorClose} 
                     onRead={handleInspectorRead}
                     isAnimatingOut={!!animatingManga}
+                    startClosing={isClosingReaderWithAnim}
                     onOpenMenu={handleInspectorOpenMenu}
                     hasPrev={!!inspectorPrev}
                     hasNext={!!inspectorNext}
@@ -1008,19 +1004,19 @@ const App = () => {
 
             {animatingManga && (
                 <div className="fixed inset-0 z-[2000] pointer-events-none">
-                    <div className="absolute inset-0 bg-black transition-opacity duration-[500ms]"
+                    <div className="absolute inset-0 bg-black transition-opacity duration-500"
                         style={{ 
                             opacity: animatingManga.phase === 'expanding' ? 1 : 0,
-                            transitionTimingFunction: animatingManga.phase.startsWith('closing') ? 'cubic-bezier(0.55, 0, 1, 0.45)' : 'cubic-bezier(0.22, 1, 0.36, 1)'
+                            transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)'
                         }} />
-                    <div className="absolute overflow-hidden transition-[top,left,width,height,border-radius] duration-[500ms] shadow-[0_30px_60px_rgba(0,0,0,0.9)]"
+                    <div className="absolute overflow-hidden transition-[top,left,width,height,border-radius] duration-500 shadow-[0_30px_60px_rgba(0,0,0,0.9)]"
                         style={{ 
-                            transitionTimingFunction: animatingManga.phase.startsWith('closing') ? 'cubic-bezier(0.55, 0, 1, 0.45)' : 'cubic-bezier(0.22, 1, 0.36, 1)',
-                            top: animatingManga.phase === 'expanding' || animatingManga.phase === 'closing-start' ? '0px' : animatingManga.rect.top + 'px', 
-                            left: animatingManga.phase === 'expanding' || animatingManga.phase === 'closing-start' ? '0px' : animatingManga.rect.left + 'px', 
-                            width: animatingManga.phase === 'expanding' || animatingManga.phase === 'closing-start' ? '100vw' : animatingManga.rect.width + 'px', 
-                            height: animatingManga.phase === 'expanding' || animatingManga.phase === 'closing-start' ? '100vh' : animatingManga.rect.height + 'px', 
-                            borderRadius: animatingManga.phase === 'expanding' || animatingManga.phase === 'closing-start' ? '0px' : '16px', 
+                            transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                            top: animatingManga.phase === 'expanding' ? '0px' : animatingManga.rect.top + 'px', 
+                            left: animatingManga.phase === 'expanding' ? '0px' : animatingManga.rect.left + 'px', 
+                            width: animatingManga.phase === 'expanding' ? '100vw' : animatingManga.rect.width + 'px', 
+                            height: animatingManga.phase === 'expanding' ? '100vh' : animatingManga.rect.height + 'px', 
+                            borderRadius: '0px', 
                             transform: 'translateZ(0)' }}>
                         <StackThumbnail file={animatingManga.manga.coverDouble || animatingManga.manga.coverStart || animatingManga.manga.cover} contain={true} />
                     </div>
