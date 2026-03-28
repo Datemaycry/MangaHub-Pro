@@ -334,6 +334,11 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                             <h2 className="text-3xl font-black text-white uppercase tracking-tighter drop-shadow-[0_0_20px_rgba(var(--theme-rgb),0.8)] line-clamp-2 w-full">
                                 {manga.title}
                             </h2>
+                        {manga.artist && (
+                            <span className="text-theme-200/70 font-bold text-sm mt-2 block drop-shadow-md">
+                                🎨 {manga.artist}
+                            </span>
+                        )}
                             {manga.bookmark != null && (
                                 <span className="inline-block mt-4 bg-theme-600/30 border border-theme-500 text-theme-100 text-sm font-black px-5 py-2 rounded-full shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)]">
                                     Reprendre page {manga.bookmark + 1}

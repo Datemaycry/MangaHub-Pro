@@ -8,14 +8,16 @@ export const getSafeStorage = (k, d) => { try { return localStorage.getItem(k) |
 export const setSafeStorage = (k, v) => { try { localStorage.setItem(k, v); } catch(e) {} };
 export const triggerHaptic = (p = 50) => { if (navigator.vibrate) try { navigator.vibrate(p); } catch(e) {} };
 
+let dbInstance = null;
 export const initDB = () => new Promise((res) => {
+    if (dbInstance) return res(dbInstance);
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = e => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains(STORE_MANGAS)) db.createObjectStore(STORE_MANGAS, {keyPath: "id"});
         if (!db.objectStoreNames.contains(STORE_PAGES)) db.createObjectStore(STORE_PAGES, {keyPath: "id"});
     };
-    req.onsuccess = e => res(e.target.result);
+    req.onsuccess = e => { dbInstance = e.target.result; res(dbInstance); };
 });
 
 export const blobToBase64Async = (blob) => new Promise((resolve) => {
@@ -150,28 +152,62 @@ export const SHELF_THEMES = {
         textShadow: '1px 1px 0px rgba(255,255,255,0.15), -1px -1px 0px rgba(0,0,0,0.8)',
         texture: 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==")] mix-blend-overlay opacity-20'
     },
-    oak: {
-        name: "Chêne",
-        bookend: { background: 'linear-gradient(to right, #d4a373, #92400e)', borderLeftColor: '#fef08a', borderTopColor: '#fef08a' },
-        board: { background: 'linear-gradient(to bottom, #ca8a04, #713f12)', borderTopColor: '#fde047' },
-        text: 'text-[#422006]',
-        textShadow: '1px 1px 0px rgba(255,255,255,0.4)',
-        texture: 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMwMDAiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==")] mix-blend-overlay opacity-30'
+    birch: {
+        name: "Bouleau",
+        bookend: { background: 'linear-gradient(to right, #eaddc5, #c2b294)', borderLeftColor: '#fff8eb', borderTopColor: '#fff8eb' },
+        board: { background: 'linear-gradient(to bottom, #d4c5ab, #a8987a)', borderTopColor: '#f5ead5' },
+        text: 'text-[#4a3b2c]',
+        textShadow: '1px 1px 0px rgba(255,255,255,0.6), 0 0 10px rgba(255,255,255,0.2)',
+        texture: 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMwMDAiIGZpbGwtb3BhY2l0eT0iMC4wMyIvPjwvc3ZnPg==")] mix-blend-overlay opacity-40'
     },
     metal: {
-        name: "Métal",
-        bookend: { background: 'linear-gradient(to right, #475569, #1e293b)', borderLeftColor: '#94a3b8', borderTopColor: '#94a3b8' },
-        board: { background: 'linear-gradient(to bottom, #334155, #0f172a)', borderTopColor: '#94a3b8' },
-        text: 'text-[#f8fafc]',
+        name: "Acier Brossé",
+        bookend: { background: 'linear-gradient(to right, #64748b, #334155)', borderLeftColor: '#f8fafc', borderTopColor: '#f8fafc' },
+        board: { background: 'linear-gradient(to bottom, #475569, #1e293b)', borderTopColor: '#f8fafc' },
+        text: 'text-[#f1f5f9]',
         textShadow: '0 0 10px rgba(255,255,255,0.4), 1px 1px 2px #000',
-        texture: 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyIiBoZWlnaHQ9IjIiPjxyZWN0IHdpZHRoPSIyIiBoZWlnaHQ9IjIiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==")] opacity-50'
+        texture: 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyIiBoZWlnaHQ9IjIiPjxyZWN0IHdpZHRoPSIyIiBoZWlnaHQ9IjIiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==")] mix-blend-overlay opacity-40'
     },
     glass: {
-        name: "Verre",
-        bookend: { background: 'linear-gradient(to right, rgba(255,255,255,0.15), rgba(255,255,255,0.02))', borderLeftColor: 'rgba(255,255,255,0.3)', borderTopColor: 'rgba(255,255,255,0.3)', backdropFilter: 'blur(12px)' },
-        board: { background: 'linear-gradient(to bottom, rgba(255,255,255,0.2), rgba(255,255,255,0.05))', borderTopColor: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(16px)' },
-        text: 'text-white',
-        textShadow: '0 0 15px rgba(255,255,255,0.8), 0 2px 4px rgba(0,0,0,0.8)',
-        texture: ''
+        name: "Verre Dépoli",
+        bookend: { background: 'linear-gradient(to right, rgba(255,255,255,0.3), rgba(56,189,248,0.05))', borderLeftColor: '#ffffff', borderTopColor: '#ffffff', backdropFilter: 'blur(16px)' },
+        board: { background: 'linear-gradient(to bottom, rgba(56,189,248,0.2), rgba(255,255,255,0.02))', borderTopColor: '#ffffff', backdropFilter: 'blur(20px)' },
+        text: 'text-[#e0f2fe]',
+        textShadow: '0 0 15px rgba(56,189,248,0.9), 0 2px 5px rgba(0,0,0,0.9)',
+        texture: 'bg-gradient-to-b from-white/10 to-transparent'
+    }
+};
+
+export const SHELF_ENGRAVINGS = {
+    none: {
+        name: "Aucune",
+        style: {}
+    },
+    vines: {
+        name: "Arabesque",
+        style: {
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='50' viewBox='0 0 100 50'%3E%3Cpath d='M0 25 C 25 0, 25 50, 50 25 S 75 0, 100 25' stroke='%23000' stroke-width='4' fill='none'/%3E%3C/svg%3E")`,
+            backgroundSize: '50px',
+            opacity: 0.35,
+            mixBlendMode: 'multiply'
+        }
+    },
+    scales: {
+        name: "Écailles",
+        style: {
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cpath d='M0,10 a10,10 0 0,0 20,0 M10,20 a10,10 0 0,0 20,0 M-10,20 a10,10 0 0,0 20,0' stroke='%23000' stroke-width='2' fill='none'/%3E%3C/svg%3E")`,
+            backgroundSize: '30px 30px',
+            opacity: 0.40,
+            mixBlendMode: 'multiply'
+        }
+    },
+    diamonds: {
+        name: "Losanges",
+        style: {
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cpath d='M10,0 L20,10 L10,20 L0,10 Z' stroke='%23000' stroke-width='2' fill='none'/%3E%3C/svg%3E")`,
+            backgroundSize: '20px 20px',
+            opacity: 0.40,
+            mixBlendMode: 'multiply'
+        }
     }
 };

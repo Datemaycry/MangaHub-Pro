@@ -69,13 +69,19 @@ const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "ne
 });
 
 const ReaderView = memo(({
-    isNightMode, setIsNightMode, isExitingReader, zenMode, setZenMode, handleCloseReader, currentTime,
+    isNightMode, setIsNightMode, isExitingReader, zenMode, setZenMode, handleCloseReader,
     toggleFullscreen, toggleBookmark, currentManga, cursor, handleSetCursor, edgeGlow, currentPages,
     allSpreads, isLandscape, prevCursor, slideDir, handleWheel, showNextChapterOverlay,
     setShowNextChapterOverlay, nextChapter, saveProgress, setCurrentManga, setCursor, markAsRead,
     toggleDisplayMode, showSpine, toggleSpine
 }) => {
     
+    const [currentTime, setCurrentTime] = useState("");
+    useEffect(() => {
+        const updateClock = () => { setCurrentTime(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })); };
+        updateClock(); const timer = setInterval(updateClock, 30000); return () => clearInterval(timer);
+    }, []);
+
     const [previewCursor, setPreviewCursor] = useState(cursor);
     const [isSliderActive, setIsSliderActive] = useState(false);
 

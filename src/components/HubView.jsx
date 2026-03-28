@@ -1,10 +1,10 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useMemo, useDeferredValue, useCallback } from 'react';
 import {
     IconSearch, IconFilter, IconCheckSquare, IconBookPlus, IconSettings,
     IconFloppyUp, IconFloppyDown, IconTrash, IconCheck
 } from './Icons';
 import {
-    SHELF_THEMES, getSafeStorage, setSafeStorage, MANGA_PROPS, getCachedUrl
+    SHELF_THEMES, SHELF_ENGRAVINGS, getSafeStorage, setSafeStorage, MANGA_PROPS, getCachedUrl
 } from '../utils';
 
 // On recrée ce petit composant ici pour que la bibliothèque puisse afficher les images
@@ -14,18 +14,103 @@ const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
 });
 
 const HubView = memo(({
-    animatingManga, search, setSearch, deferredPrompt, handleInstallApp, showBookmarksOnly,
-    setShowBookmarksOnly, setIsAdding, showGlobalSettings, setShowGlobalSettings, appTheme,
-    setAppTheme, shelfTheme, setShelfTheme, handleExport, handleImport, setPurgeConfirm,
-    showTags, setShowTags, activeTags, setActiveTags, libraryStructure, setActiveCardMenu,
-    isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode,
-    toggleSelectAllMangas, setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga
+    isActive, mangas, animatingManga, deferredPrompt, handleInstallApp, 
+    setIsAdding, showGlobalSettings, setShowGlobalSettings, appTheme,
+    setAppTheme, shelfTheme, setShelfTheme, handleExport, handleImport, setPurgeConfirm, shelfEngraving, setShelfEngraving,
+    setActiveCardMenu, isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode, handleReorderManga,
+    toggleSelectAllMangas, setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga, deletingMangas
 }) => {
 
     const isIosSafari = /iphone|ipad|ipod/i.test(navigator.userAgent) && /safari/i.test(navigator.userAgent) && !/crios|fxios|opios|mercury/i.test(navigator.userAgent);
     const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
     const [showIosBanner, setShowIosBanner] = useState(() => isIosSafari && !isStandalone && !getSafeStorage('mangaHubIosBannerDismissed', ''));
     const [shelfRowsCount, setShelfRowsCount] = useState(1);
+
+    const [search, setSearch] = useState("");
+    const deferredSearch = useDeferredValue(search);
+    const [activeTags, setActiveTags] = useState([]); 
+    const [showTags, setShowTags] = useState(false); 
+    const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
+    const [sortOrder, setSortOrder] = useState(() => getSafeStorage('mangaHubSortOrder', 'group'));
+
+    // OPTIMISATION : Mode sommeil. On ne met à jour les données que si l'étagère est visible.
+    const [displayMangas, setDisplayMangas] = useState(mangas);
+    useEffect(() => {
+        if (isActive) setDisplayMangas(mangas);
+    }, [mangas, isActive]);
+
+    const searchResults = useMemo(() => {
+        if (deferredSearch.trim().length < 2) return [];
+        const normalizedMangas = displayMangas.map(m => {
+            const tSet = new Set((m.tags || []).map(t => t.toUpperCase()));
+            return { ...m, tags: Array.from(tSet).sort() };
+        });
+        return normalizedMangas.filter(m => {
+            const searchLower = deferredSearch.toLowerCase();
+            const matchTitle = m.title.toLowerCase().includes(searchLower);
+            const matchGroup = m.group && m.group.toLowerCase().includes(searchLower);
+            const matchArtist = m.artist && m.artist.toLowerCase().includes(searchLower);
+            const matchTags = m.tags.some(t => t.toLowerCase().includes(searchLower));
+            return matchTitle || matchGroup || matchArtist || matchTags;
+        }).slice(0, 50);
+    }, [displayMangas, deferredSearch]);
+
+    const libraryStructure = useMemo(() => {
+        const tagsSet = new Set();
+        const normalizedMangas = displayMangas.map(m => {
+            const tSet = new Set((m.tags || []).map(t => t.toUpperCase()));
+            return { ...m, tags: Array.from(tSet).sort() };
+        });
+        normalizedMangas.forEach(m => m.tags.forEach(t => tagsSet.add(t)));
+        const allAvailableTags = Array.from(tagsSet).sort();
+        
+        let filtered = normalizedMangas.filter(m => {
+            const matchTags = activeTags.length === 0 || activeTags.every(t => m.tags.includes(t));
+            const matchBookmark = showBookmarksOnly ? (m.bookmark != null) : true;
+            return matchTags && matchBookmark;
+        });
+
+        const shelvesMap = {};
+        filtered.forEach(m => {
+            const g = m.group || "Volumes Indépendants";
+            if (!shelvesMap[g]) shelvesMap[g] = { title: g, mangas: [], date: m.date };
+            shelvesMap[g].mangas.push(m);
+            if (m.date > shelvesMap[g].date) shelvesMap[g].date = m.date;
+        });
+
+        const sortedShelves = Object.values(shelvesMap).sort((a,b) => {
+            if (sortOrder === 'lastRead') {
+                const lastReadA = Math.max(0, ...a.mangas.map(m => m.lastRead || 0));
+                const lastReadB = Math.max(0, ...b.mangas.map(m => m.lastRead || 0));
+                if (lastReadB !== lastReadA) return lastReadB - lastReadA;
+            }
+            if (sortOrder === 'dateAdded') {
+                const dateA = Math.max(0, ...a.mangas.map(m => m.date || 0));
+                const dateB = Math.max(0, ...b.mangas.map(m => m.date || 0));
+                if (dateB !== dateA) return dateB - dateA;
+            }
+            if (a.title === "Volumes Indépendants") return 1;
+            if (b.title === "Volumes Indépendants") return -1;
+            return a.title.localeCompare(b.title, undefined, {numeric: true});
+        });
+
+        sortedShelves.forEach(s => s.mangas.sort((a,b) => {
+            const oA = a.order ?? 999999;
+            const oB = b.order ?? 999999;
+            if (oA !== oB) return oA - oB;
+            return a.title.localeCompare(b.title, undefined, {numeric: true});
+        }));
+
+        const flattened = [];
+        sortedShelves.forEach((shelf, shelfIndex) => {
+            shelf.mangas.forEach((m, mIndex) => {
+                flattened.push({ type: 'manga', data: m, group: shelf.title, isFirst: mIndex === 0 });
+            });
+            if (shelfIndex < sortedShelves.length - 1) flattened.push({ type: 'separator', key: `sep-${shelfIndex}` });
+        });
+
+        return { shelves: sortedShelves, flattened, allAvailableTags };
+    }, [displayMangas, activeTags, showBookmarksOnly, sortOrder]);
     
     useEffect(() => {
         const updateRows = () => {
@@ -40,9 +125,15 @@ const HubView = memo(({
             setShelfRowsCount(Math.max(1, neededRows));
         };
         
+        let resizeTimer;
+        const handleResize = () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(updateRows, 150); // Debounce de 150ms
+        };
+
         updateRows();
-        window.addEventListener('resize', updateRows);
-        return () => window.removeEventListener('resize', updateRows);
+        window.addEventListener('resize', handleResize);
+        return () => { window.removeEventListener('resize', handleResize); clearTimeout(resizeTimer); };
     }, [libraryStructure.flattened.length]);
 
     const handleSelectAll = () => {
@@ -50,6 +141,22 @@ const HubView = memo(({
         if (toggleSelectAllMangas) toggleSelectAllMangas(allFilteredIds);
     };
     const allSelected = libraryStructure.flattened.filter(i => i.type === 'manga').length > 0 && selectedMangas.size === libraryStructure.flattened.filter(i => i.type === 'manga').length;
+
+    // OPTIMISATION : Un seul event listener en mémoire partagé par tous les livres
+    const handleBookPointerEnter = useCallback((e) => {
+        const popup = e.currentTarget.querySelector('.peek-popup');
+        if (popup) {
+            if (e.currentTarget.getBoundingClientRect().right > window.innerWidth - 220) {
+                popup.style.left = 'auto';
+                popup.style.right = 'calc(100% + 12px)';
+                popup.style.transformOrigin = 'top right';
+            } else {
+                popup.style.left = 'calc(100% + 12px)';
+                popup.style.right = 'auto';
+                popup.style.transformOrigin = 'top left';
+            }
+        }
+    }, []);
 
     return (
         <div 
@@ -132,6 +239,19 @@ const HubView = memo(({
                                         </div>
 
                                         <div className="h-px bg-theme-900/50 w-full"></div>
+
+                                        <div>
+                                            <span className="text-[10px] text-theme-400 font-black uppercase tracking-widest mb-2 block opacity-70 text-center">Gravure Étagère</span>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {Object.entries(SHELF_ENGRAVINGS).map(([key, engraving]) => (
+                                                    <button key={key} onClick={() => setShelfEngraving(key)} className={`py-1.5 rounded text-[10px] font-black transition-colors border ${shelfEngraving === key ? 'bg-theme-500 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.6)]' : 'bg-theme-950/50 text-theme-400 border-theme-800/50 hover:bg-theme-800/50'}`}>
+                                                        {engraving.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="h-px bg-theme-900/50 w-full"></div>
                                         
                                         <div>
                                             <span className="text-[10px] text-theme-400 font-black uppercase tracking-widest mb-2 block opacity-70 text-center">Données & Sauvegarde</span>
@@ -187,9 +307,13 @@ const HubView = memo(({
                     
                     {[['left-0','shadow-[8px_0_20px_rgba(0,0,0,0.5)] border-r','bg-gradient-to-r'],['right-0','shadow-[-8px_0_20px_rgba(0,0,0,0.5)] border-l','bg-gradient-to-l']].map(([pos, shadow, grad]) => {
                         const t = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
+                        const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
                         return (
                             <div key={pos} className={`absolute top-0 bottom-0 ${pos} z-[25] pointer-events-none ${shadow} border-white/10 transition-all duration-500`} style={{ width: 'var(--pillar-w)', ...t.board }}>
                                 {t.texture && <div className={`absolute inset-0 ${t.texture} pointer-events-none`}></div>}
+                                {engravingDef.style.backgroundImage && (
+                                    <div className="absolute inset-0 pointer-events-none" style={engravingDef.style}></div>
+                                )}
                                 <div className={`absolute inset-0 ${grad} from-black/80 to-transparent pointer-events-none`}></div>
                             </div>
                         );
@@ -209,10 +333,14 @@ const HubView = memo(({
                             <div className="absolute top-0 left-0 w-full flex flex-col pointer-events-none z-0">
                                 {Array.from({ length: shelfRowsCount }).map((_, i) => {
                                     const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
+                                    const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
                                     return (
                                         <div key={i} className="w-full flex-none flex flex-col justify-end transition-all duration-500" style={{ height: 'var(--row-total)' }}>
                                             <div className="w-full shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 border-t border-white/5" style={{ height: 'var(--board-h)', ...themeDef.board }}>
                                                 {themeDef.texture && <div className={`absolute inset-0 ${themeDef.texture} pointer-events-none`}></div>}
+                                                {engravingDef.style.backgroundImage && (
+                                                    <div className="absolute inset-0 pointer-events-none" style={engravingDef.style}></div>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -222,12 +350,16 @@ const HubView = memo(({
                             <div className="relative z-10 flex flex-wrap content-start items-start justify-start w-full" style={{ paddingLeft: 'var(--pillar-w)', paddingRight: 'var(--pillar-w)', paddingBottom: 'max(6rem, env(safe-area-inset-bottom))' }}>
                                 {libraryStructure.flattened.map((item, i) => {
                                     const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
+                                    const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
                                     
                                     if (item.type === 'separator') {
                                         return (
                                             <div key={item.key} className="flex-none flex items-end relative transition-all duration-500" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
                                                 <div className="flex-none shadow-[-5px_0_15px_rgba(0,0,0,0.8)] border-l border-t border-white/10 relative z-20 rounded-t-[2px] h-[90%]" style={{ width: 'clamp(10px, 1.5vh, 20px)', ...themeDef.bookend }}>
                                                     <div className="w-1/2 h-full bg-black/30 absolute left-0 pointer-events-none"></div>
+                                                    {engravingDef.style.backgroundImage && (
+                                                        <div className="absolute inset-0 pointer-events-none" style={engravingDef.style}></div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -251,12 +383,12 @@ const HubView = memo(({
                                         <div key={m.id} className="flex-none flex items-end relative group/book hover:z-[100]" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
                                             
                                             {/* 👉 Ici, on transmet l'événement "e" avec "setInspectingManga(m, e)" */}
-                                            <div onClick={(e) => { 
+                                                <div onPointerEnter={handleBookPointerEnter} onClick={(e) => { 
                                                 if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); return; }
                                                 setInspectingManga(m, e);
                                             }} className={`manga-cover-image relative flex-none cursor-pointer z-10 rounded-[2px] ${isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : 'hover:-translate-y-5 hover:shadow-[0_20px_30px_-8px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.15)]'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))`, boxShadow: '0 8px 10px -4px rgba(0,0,0,0.8)', transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                                                 
-                                                <div className="absolute bottom-2 left-[calc(100%+12px)] bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.3)] opacity-0 group-hover/book:opacity-100 group-hover/book:translate-y-0 pointer-events-none z-[200] overflow-hidden border border-white/10 flex flex-col w-[140px] sm:w-[180px] origin-bottom-left translate-y-2" style={{ transition: 'opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1)' }}>
+                                            <div className="peek-popup absolute top-2 left-[calc(100%+12px)] bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.3)] opacity-0 group-hover/book:opacity-100 group-hover/book:translate-y-0 pointer-events-none z-[200] overflow-hidden border border-white/10 flex flex-col w-[140px] sm:w-[180px] origin-top-left translate-y-2" style={{ transition: 'opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1)' }}>
                                                     <div className="relative w-full bg-black border-b border-white/10" style={{ aspectRatio: `${bw} / ${bh}` }}>
                                                         <StackThumbnail file={mainCover} contain={true} />
                                                     </div>

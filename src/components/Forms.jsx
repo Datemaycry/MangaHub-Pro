@@ -11,38 +11,125 @@ const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
     return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : null;
 });
 
-export const GroupInput = memo(({ existingGroups = [], value, onChange, name, inputClass = "rounded-xl px-4 py-4 text-sm" }) => {
-    const hasExisting = existingGroups.length > 0;
-    const [mode, setMode] = useState(hasExisting && (!value || existingGroups.includes(value)) ? 'select' : 'input');
-    const [internalVal, setInternalVal] = useState(value || "");
+export const GroupInput = memo(({ existingGroups = [], value, onChange, name, placeholder, inputClass = "rounded-xl px-4 py-4 text-sm" }) => {
+    const [val, setVal] = useState(value || "");
 
-    const actualValue = onChange !== undefined ? value : internalVal;
-    const handleChange = (val) => {
-        if (onChange !== undefined) onChange(val);
-        else setInternalVal(val);
+    useEffect(() => {
+        if (value !== undefined) setVal(value);
+    }, [value]);
+
+    const handleChange = (newVal) => {
+        if (onChange) onChange(newVal);
+        setVal(newVal);
+    };
+
+    const toggleGroup = (group) => {
+        if (val === group) handleChange("");
+        else handleChange(group);
     };
 
     const baseClass = `w-full bg-black border border-theme-600/40 text-theme-300 font-bold text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] ${inputClass}`;
 
-    if (mode === 'select' && hasExisting) {
-        return (
-            <select name={name} value={actualValue} onChange={e => { if (e.target.value === '__NEW__') { setMode('input'); handleChange(""); } else { handleChange(e.target.value); } }} className={`${baseClass} appearance-none cursor-pointer`}>
-                <option value="">-- Sans Série (Indépendant) --</option>
-                {existingGroups.map(g => <option key={g} value={g}>{g}</option>)}
-                <option value="__NEW__">+ Créer une nouvelle Série / Pile...</option>
-            </select>
-        );
-    }
-
     return (
-        <div className="flex gap-2 w-full">
-            <input name={name} value={actualValue} onChange={e => handleChange(e.target.value)} placeholder="Série / Pile (Optionnel)" className={`flex-1 ${baseClass}`} />
-            {hasExisting && (<button type="button" onClick={() => { setMode('select'); handleChange(""); }} className="bg-theme-900/40 border border-theme-600/40 text-theme-300 px-4 rounded-xl font-black text-xs hover:bg-theme-800 transition-all shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)]">LISTE</button>)}
+        <div className="w-full flex flex-col gap-2">
+            <input name={name} value={val} onChange={e => handleChange(e.target.value)} placeholder={placeholder || "Série / Pile (Optionnel)"} className={baseClass} />
+            {existingGroups.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 justify-center mt-1 max-h-24 overflow-y-auto custom-scrollbar p-1">
+                    {existingGroups.map(g => {
+                        const isSelected = val === g;
+                        return (
+                            <button type="button" key={g} onClick={() => toggleGroup(g)} className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-colors border active:scale-95 ${isSelected ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/40'}`}>
+                                {g}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 });
 
-export const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingGroups = [] }) => {
+export const ArtistInput = memo(({ existingArtists = [], value, onChange, name, placeholder, inputClass = "rounded-xl px-4 py-4 text-sm" }) => {
+    const [val, setVal] = useState(value || "");
+
+    useEffect(() => {
+        if (value !== undefined) setVal(value);
+    }, [value]);
+
+    const handleChange = (newVal) => {
+        if (onChange) onChange(newVal);
+        setVal(newVal);
+    };
+
+    const toggleArtist = (artist) => {
+        if (val === artist) handleChange("");
+        else handleChange(artist);
+    };
+
+    const baseClass = `w-full bg-black border border-theme-600/40 text-theme-300 font-bold text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] ${inputClass}`;
+
+    return (
+        <div className="w-full flex flex-col gap-2">
+            <input name={name} value={val} onChange={e => handleChange(e.target.value)} placeholder={placeholder || "Artiste / Auteur (Optionnel)"} className={baseClass} />
+            {existingArtists.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 justify-center mt-1 max-h-24 overflow-y-auto custom-scrollbar p-1">
+                    {existingArtists.map(a => {
+                        const isSelected = val === a;
+                        return (
+                            <button type="button" key={a} onClick={() => toggleArtist(a)} className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-colors border active:scale-95 ${isSelected ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/40'}`}>
+                                {a}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+});
+
+export const TagInput = memo(({ existingTags = [], value, defaultValue, onChange, name, placeholder, className }) => {
+    const [val, setVal] = useState(value !== undefined ? value : (defaultValue || ""));
+
+    useEffect(() => {
+        if (value !== undefined) setVal(value);
+    }, [value]);
+
+    const handleChange = (newVal) => {
+        if (onChange) onChange(newVal);
+        else setVal(newVal);
+    };
+
+    const toggleTag = (tag) => {
+        const currentTags = val.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+        if (currentTags.includes(tag)) {
+            handleChange(currentTags.filter(t => t !== tag).join(', '));
+        } else {
+            handleChange([...currentTags, tag].join(', '));
+        }
+    };
+
+    const currentTagsSet = new Set(val.split(',').map(t => t.trim().toUpperCase()).filter(Boolean));
+
+    return (
+        <div className="w-full flex flex-col gap-2">
+            <input name={name} value={val} onChange={e => handleChange(e.target.value)} placeholder={placeholder} className={className} />
+            {existingTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 justify-center mt-1 max-h-24 overflow-y-auto custom-scrollbar p-1">
+                    {existingTags.map(t => {
+                        const isSelected = currentTagsSet.has(t);
+                        return (
+                            <button type="button" key={t} onClick={() => toggleTag(t)} className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-colors border active:scale-95 ${isSelected ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/40'}`}>
+                                {t}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+});
+
+export const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingGroups = [], existingTags = [], existingArtists = [] }) => {
     if (!editingManga) return null;
     return (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 animate-fade backdrop-blur-md">
@@ -50,8 +137,9 @@ export const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingG
                 <h2 className="text-xl font-black mb-8 text-center uppercase text-theme-400" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8)' }}>Modifier</h2>
                 <form onSubmit={onSubmit} className="space-y-5">
                     <input name="title" defaultValue={editingManga.title} required className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-base text-center outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] transition-all" />
+                    <ArtistInput existingArtists={existingArtists} value={editingManga.artist || ""} name="artist" inputClass="rounded-2xl px-5 py-4 text-base" />
                     <GroupInput existingGroups={existingGroups} value={editingManga.group || ""} name="group" inputClass="rounded-2xl px-5 py-4 text-base" />
-                    <input name="tags" defaultValue={(editingManga.tags || []).join(', ')} placeholder="Tags (Ex: Shonen, Action...)" className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-base text-center outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] transition-all" />
+                    <TagInput existingTags={existingTags} name="tags" defaultValue={(editingManga.tags || []).join(', ')} placeholder="Tags (Ex: Shonen, Action...)" className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-base text-center outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] transition-all" />
                     <div className="flex gap-4 pt-4">
                         <button type="button" onClick={onClose} className="flex-1 py-4 sm:py-5 bg-black text-theme-400 border border-theme-600/40 font-black text-xs rounded-2xl uppercase transition hover:bg-theme-950/30">Annuler</button>
                         <button type="submit" className="flex-1 py-4 sm:py-5 bg-theme-600/20 text-theme-300 border border-theme-500 font-black text-xs rounded-2xl uppercase transition shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)]">Valider</button>
@@ -62,7 +150,7 @@ export const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingG
     );
 });
 
-export const BatchEditModal = memo(({ isOpen, count, onClose, onSubmit }) => {
+export const BatchEditModal = memo(({ isOpen, count, onClose, onSubmit, existingTags = [], existingGroups = [], existingArtists = [] }) => {
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 animate-fade backdrop-blur-md">
@@ -72,11 +160,15 @@ export const BatchEditModal = memo(({ isOpen, count, onClose, onSubmit }) => {
                 <form onSubmit={onSubmit} className="space-y-5">
                     <div className="bg-black/50 p-4 rounded-2xl border border-theme-800/50">
                         <label className="block text-[10px] text-theme-400 font-black uppercase tracking-widest mb-2">Définir la Série / Pile</label>
-                        <input name="group" placeholder="Taper 'CLEAR' pour retirer de la pile" className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-3 text-theme-300 font-bold text-sm outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all" />
+                        <GroupInput existingGroups={existingGroups} name="group" placeholder="Taper 'CLEAR' pour retirer de la pile" inputClass="rounded-xl px-4 py-3 text-sm" />
+                    </div>
+                    <div className="bg-black/50 p-4 rounded-2xl border border-theme-800/50">
+                        <label className="block text-[10px] text-theme-400 font-black uppercase tracking-widest mb-2">Définir l'Artiste</label>
+                        <ArtistInput existingArtists={existingArtists} name="artist" placeholder="Taper 'CLEAR' pour retirer" inputClass="rounded-xl px-4 py-3 text-sm" />
                     </div>
                     <div className="bg-black/50 p-4 rounded-2xl border border-theme-800/50">
                         <label className="block text-[10px] text-theme-400 font-black uppercase tracking-widest mb-2">Ajouter des Tags</label>
-                        <input name="tags" placeholder="Ex: Shonen, Terminé... (Laisser vide pour ignorer)" className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-3 text-theme-300 font-bold text-sm outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all" />
+                        <TagInput existingTags={existingTags} name="tags" placeholder="Ex: Shonen, Terminé... (Laisser vide pour ignorer)" className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-3 text-theme-300 font-bold text-sm outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all" />
                     </div>
                     <div className="flex gap-4 pt-4">
                         <button type="button" onClick={onClose} className="flex-1 py-4 sm:py-5 bg-black text-theme-400 border border-theme-600/40 font-black text-xs rounded-2xl uppercase transition hover:bg-theme-950/30">Annuler</button>
@@ -97,7 +189,7 @@ const CoverPicker = memo(({ preview, label, sublabel, isRequired, height = "h-40
     const emptyClass   = `relative bg-black hover:bg-theme-950/30 rounded-2xl border border-theme-600/40 p-4 text-center cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center ${height} shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.1)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.3)] hover:border-theme-400 group`;
     return preview ? (
         <label className={previewClass}>
-            <img src={preview} className="absolute inset-0 w-full h-full object-contain drop-shadow-2xl relative z-10" />
+            <img src={preview} className="absolute inset-0 w-full h-full object-contain drop-shadow-2xl z-10" />
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-8 pb-3 px-4 flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity z-20">
                 <span className="text-[10px] text-white font-black uppercase drop-shadow-[0_0_5px_rgba(0,0,0,1)]">{label}</span>
                 <span className="bg-theme-600/80 border border-theme-400 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">MODIFIER</span>
@@ -114,9 +206,10 @@ const CoverPicker = memo(({ preview, label, sublabel, isRequired, height = "h-40
     );
 });
 
-export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImportProgress, showToast, existingGroups = [] }) => {
+export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImportProgress, showToast, existingGroups = [], existingTags = [], existingArtists = [] }) => {
     const [formTitle, setFormTitle] = useState("");
     const [formGroup, setFormGroup] = useState("");
+    const [formArtist, setFormArtist] = useState("");
     const [formMangaDir, setFormMangaDir] = useState('rtl');
     const [formTags, setFormTags] = useState("");
     
@@ -185,6 +278,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                 setFormTitle(metadata.title || ""); 
                 setFormMangaDir(metadata.direction || "rtl"); 
                 if (metadata.group) setFormGroup(metadata.group);
+                if (metadata.artist) setFormArtist(metadata.artist);
                 const importedTags = new Set((metadata.tags || []).map(t => t.toUpperCase())); 
                 setFormTags(Array.from(importedTags).join(', '));
                 
@@ -212,6 +306,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
             const mangaId = "m_"+Date.now();
             const newTags = formTags.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
             const finalGroup = formGroup.trim() || null;
+            const finalArtist = formArtist.trim() || null;
             
             // Optimisation des couvertures (max 1600px, qualité 85%)
             const optCoverDouble = coverDoubleFile ? await optimizeImage(coverDoubleFile, 1600, 0.85) : null;
@@ -235,7 +330,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
             const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
             
             tx.objectStore(STORE_MANGAS).add({
-                id: mangaId, title: formTitle || "Sans titre", group: finalGroup, direction: formMangaDir, tags: newTags, 
+                id: mangaId, title: formTitle || "Sans titre", group: finalGroup, artist: finalArtist, direction: formMangaDir, tags: newTags, 
                 coverDouble: sCoverDouble, coverStart: sCoverStart, coverEnd: sCoverEnd, cover: sCover,
                 totalPages: orderedPages.length, progress: 0, date: Date.now()
             });
@@ -311,9 +406,10 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                         
                         <div className="grid grid-cols-1 gap-4 mb-4">
                             <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Titre du chapitre" required className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] placeholder-theme-800 transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]" />
+                            <ArtistInput existingArtists={existingArtists} value={formArtist} onChange={setFormArtist} name="artist" inputClass="rounded-xl px-4 py-4 text-sm placeholder-theme-800" />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <GroupInput existingGroups={existingGroups} value={formGroup} onChange={setFormGroup} name="group" inputClass="rounded-xl px-4 py-4 text-sm" />
-                                <input value={formTags} onChange={e => setFormTags(e.target.value)} placeholder="Tags (Action, Terminé...)" className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] placeholder-theme-800 transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]" />
+                                <TagInput existingTags={existingTags} value={formTags} onChange={setFormTags} placeholder="Tags (Action, Terminé...)" className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] placeholder-theme-800 transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]" />
                             </div>
                         </div>
                         
@@ -383,8 +479,8 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                             {orderedPages.map((f, i) => {
                                 const isSelected = selectedPages.has(i);
                                 return (
-                                <div key={f.name + i} draggable onDragStart={(e) => handleDragStart(e, i)} onDragOver={(e) => handleDragOver(e, i)} onDrop={(e) => handleDrop(e, i)}
-                                    className={`relative aspect-[3/4.5] bg-black rounded-xl sm:rounded-2xl overflow-hidden border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.5)] hover:border-theme-400 transition-all cursor-move group select-none gpu-accelerated touch-none ${isSelected ? 'ring-2 ring-red-500 opacity-80 scale-[0.98]' : ''}`}
+                                <div key={f.name} draggable onDragStart={(e) => handleDragStart(e, i)} onDragOver={(e) => handleDragOver(e, i)} onDrop={(e) => handleDrop(e, i)}
+                                    className={`relative aspect-[3/4.5] bg-black rounded-xl sm:rounded-2xl overflow-hidden border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.5)] hover:border-theme-400 transition-all cursor-move group select-none touch-none ${isSelected ? 'ring-2 ring-red-500 opacity-80 scale-[0.98]' : ''}`}
                                     style={{ WebkitTouchCallout: 'none' }}
                                 >
                                     <div className="absolute inset-0 pointer-events-none"><StackThumbnail file={f} /></div>
