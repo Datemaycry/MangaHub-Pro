@@ -107,7 +107,8 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         setIsDragging(true);
         // On lit la rotation actuelle directement depuis l'élément DOM
         const currentRotY = parseFloat(rotatingBookRef.current?.dataset.rotY || rotY);
-        dragInfo.current = { startX: e.clientX, startY: e.clientY, initRotY: currentRotY, initRotX: rotX, hasDragged: false };
+        const currentRotX = parseFloat(rotatingBookRef.current?.dataset.rotX || rotX);
+        dragInfo.current = { startX: e.clientX, startY: e.clientY, initRotY: currentRotY, initRotX: currentRotX, hasDragged: false };
         e.currentTarget.setPointerCapture(e.pointerId);
     };
 
@@ -119,12 +120,12 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) dragInfo.current.hasDragged = true;
         
         const newRotY = dragInfo.current.initRotY + deltaX * 0.6;
-        setRotX(Math.max(-60, Math.min(60, dragInfo.current.initRotX - deltaY * 0.6))); 
+        const newRotX = Math.max(-60, Math.min(60, dragInfo.current.initRotX - deltaY * 0.6));
 
-        // On met à jour le style directement, sans passer par le state pour rotY
         if (rotatingBookRef.current) {
-            rotatingBookRef.current.style.transform = `rotateX(${rotX}deg) rotateY(${newRotY}deg)`;
+            rotatingBookRef.current.style.transform = `rotateX(${newRotX}deg) rotateY(${newRotY}deg)`;
             rotatingBookRef.current.dataset.rotY = newRotY;
+            rotatingBookRef.current.dataset.rotX = newRotX;
         }
     };
 
@@ -132,7 +133,10 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         setIsDragging(false);
         if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
         // On synchronise le state React avec la valeur du DOM une fois le drag terminé
-        if (rotatingBookRef.current) setRotY(parseFloat(rotatingBookRef.current.dataset.rotY || '0'));
+        if (rotatingBookRef.current) {
+            setRotY(parseFloat(rotatingBookRef.current.dataset.rotY || '0'));
+            setRotX(parseFloat(rotatingBookRef.current.dataset.rotX || '0'));
+        }
         if (spinTimeoutRef.current) clearTimeout(spinTimeoutRef.current);
         spinTimeoutRef.current = setTimeout(() => setAutoSpin(true), 1500);
     };

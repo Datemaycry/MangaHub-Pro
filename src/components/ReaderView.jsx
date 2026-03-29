@@ -35,10 +35,10 @@ const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "ne
             return (
                 <div className="flex w-full h-full perspective-[3000px] transform-style-[preserve-3d]">
                     {!hideAmbilight && <ReaderImage file={spread.center} isBackground={true} />}
-                    <div ref={leftRef} className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animLeftClass}`}>
+                    <div ref={leftRef} className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animLeftClass}`} style={{ willChange: 'transform, filter' }}>
                         <div className="absolute top-0 left-0 w-[100vw] h-full flex justify-center items-center"><ReaderImage file={spread.center} /></div>
                     </div>
-                    <div ref={rightRef} className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animRightClass}`}>
+                    <div ref={rightRef} className={`w-1/2 h-full relative overflow-hidden gpu-accelerated ${animRightClass}`} style={{ willChange: 'transform, filter' }}>
                         <div className="absolute top-0 right-0 w-[100vw] h-full flex justify-center items-center"><ReaderImage file={spread.center} /></div>
                     </div>
                 </div>
@@ -58,10 +58,10 @@ const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "ne
                 <div className="w-1/2 h-full overflow-hidden relative">{!hideAmbilight && spread.left && <ReaderImage file={spread.left} isBackground={true} />}</div>
                 <div className="w-1/2 h-full overflow-hidden relative">{!hideAmbilight && spread.right && <ReaderImage file={spread.right} isBackground={true} />}</div>
             </div>
-            <div ref={leftRef} className={`page-wrapper-left gpu-accelerated ${animLeftClass}`}>
+            <div ref={leftRef} className={`page-wrapper-left gpu-accelerated ${animLeftClass}`} style={{ willChange: 'transform, filter' }}>
                 {spread.left ? <ReaderImage file={spread.left} className="img-left" /> : <div className="w-full h-full bg-black"></div>}
             </div>
-            <div ref={rightRef} className={`page-wrapper-right gpu-accelerated ${animRightClass}`}>
+            <div ref={rightRef} className={`page-wrapper-right gpu-accelerated ${animRightClass}`} style={{ willChange: 'transform, filter' }}>
                 {spread.right ? <ReaderImage file={spread.right} className="img-right" /> : <div className="w-full h-full bg-black"></div>}
             </div>
         </div>
@@ -83,12 +83,17 @@ const ReaderView = memo(({
     }, []);
 
     const [previewCursor, setPreviewCursor] = useState(cursor);
+    const deferredPreviewCursor = React.useDeferredValue(previewCursor);
     const [isSliderActive, setIsSliderActive] = useState(false);
 
     const [dragState, setDragState] = useState({ active: false, dir: null, targetCursor: null, snapping: false });
     const dragData = useRef({ startX: 0, diffX: 0, progress: 0 });
     const activeRefs = useRef({ single: null, left: null, right: null });
     const dragRaf = useRef(null);
+
+    const setSingleRef = React.useCallback(el => { activeRefs.current.single = el; }, []);
+    const setLeftRef = React.useCallback(el => { activeRefs.current.left = el; }, []);
+    const setRightRef = React.useCallback(el => { activeRefs.current.right = el; }, []);
 
     const applyPhysicalStyles = React.useCallback((p, dir, isSnapping = false) => {
         const isRTL = currentManga?.direction === 'rtl';
@@ -123,12 +128,6 @@ const ReaderView = memo(({
         }
     }, [currentManga]);
 
-    React.useLayoutEffect(() => {
-        if (dragState.active || dragState.snapping) {
-            applyPhysicalStyles(dragData.current.progress, dragState.dir, dragState.snapping);
-        }
-    }, [dragState.targetCursor, dragState.dir, dragState.active, dragState.snapping, applyPhysicalStyles]);
-
     const handlePointerDown = (e) => {
         if (showNextChapterOverlay || prevCursor !== null) return;
         if (e.button && e.button !== 0) return;
@@ -154,13 +153,10 @@ const ReaderView = memo(({
             dragData.current.diffX = diffX;
             dragData.current.progress = progress;
 
-            setDragState(prev => {
-                if (prev.dir !== dir || prev.targetCursor !== targetCursor) {
-                    return { ...prev, dir, targetCursor };
-                }
-                applyPhysicalStyles(progress, dir, false);
-                return prev;
-            });
+            if (dragState.dir !== dir || dragState.targetCursor !== targetCursor) {
+                setDragState(prev => ({ ...prev, dir, targetCursor }));
+            }
+            applyPhysicalStyles(progress, dir, false);
         });
     };
 
@@ -297,9 +293,9 @@ const ReaderView = memo(({
                                     manga={currentManga} 
                                     isLandscape={isLandscape} 
                                     hideAmbilight={true} 
-                                    singleRef={el => activeRefs.current.single = el}
-                                    leftRef={el => activeRefs.current.left = el}
-                                    rightRef={el => activeRefs.current.right = el}
+                                    singleRef={setSingleRef}
+                                    leftRef={setLeftRef}
+                                    rightRef={setRightRef}
                                 />
                             </div>
                         )}
@@ -344,22 +340,22 @@ const ReaderView = memo(({
                     </div>
 
                     <div className="relative w-full h-8 flex items-center">
-                        <div className={`absolute bottom-full mb-3 -translate-x-1/2 transition-all duration-200 pointer-events-none z-[160] flex flex-col items-center ${isSliderActive ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95'}`}
+                        <div className={`absolute bottom-full mb-3 -translate-x-1/2 transition-all duration-200 pointer-events-none z-[160] flex flex-col items-center w-max ${isSliderActive ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95'}`}
                              style={{ left: `calc(${percent}% + (${12 - percent * 0.24}px))` }}>
 
                              <div className="bg-black/90 backdrop-blur-sm text-theme-100 text-[10px] font-black px-4 py-1.5 rounded-full shadow-[0_0_15px_rgba(var(--theme-rgb),0.5)] border border-theme-500/50 whitespace-nowrap mb-2 transform -translate-y-1 drop-shadow-lg">
-                                 {allSpreads[previewCursor]?.info}
+                                 {allSpreads[deferredPreviewCursor]?.info}
                              </div>
 
                              <div className="bg-slate-900/95 backdrop-blur-xl border-[2px] border-theme-500/80 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_30px_rgba(var(--theme-rgb),0.5)] overflow-hidden h-32 sm:h-48 aspect-auto min-w-[80px] sm:min-w-[120px] flex items-center justify-center p-1 relative">
                                  <div className="w-full h-full relative flex items-center justify-center bg-transparent rounded-xl overflow-hidden">
-                                    {allSpreads[previewCursor] && (
-                                        allSpreads[previewCursor].center ? (
-                                            <StackThumbnail file={allSpreads[previewCursor].center} contain={true} />
+                                    {allSpreads[deferredPreviewCursor] && (
+                                        allSpreads[deferredPreviewCursor].center ? (
+                                            <StackThumbnail file={allSpreads[deferredPreviewCursor].center} contain={true} />
                                         ) : (
                                             <div className="flex w-full h-full bg-theme-900/50">
-                                                <div className="w-1/2 h-full relative"><StackThumbnail file={allSpreads[previewCursor].left} contain={true} className="object-right" /></div>
-                                                <div className="w-1/2 h-full relative -ml-[1px]"><StackThumbnail file={allSpreads[previewCursor].right} contain={true} className="object-left" /></div>
+                                                <div className="w-1/2 h-full relative"><StackThumbnail file={allSpreads[deferredPreviewCursor].left} contain={true} className="object-right" /></div>
+                                                <div className="w-1/2 h-full relative -ml-[1px]"><StackThumbnail file={allSpreads[deferredPreviewCursor].right} contain={true} className="object-left" /></div>
                                             </div>
                                         )
                                     )}
