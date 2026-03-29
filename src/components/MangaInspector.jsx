@@ -54,6 +54,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     
     const bookContainerRef = useRef(null);
     const uiRef = useRef(null);
+    const rotatingBookRef = useRef(null); // <-- Ref pour l'élément qui tourne
     const [isClosing, setIsClosing] = useState(false);
 
     const dragInfo = useRef({ startX: 0, startY: 0, initRotY: 0, initRotX: 0, hasDragged: false });
@@ -80,25 +81,33 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
 
     useEffect(() => {
         if (!autoSpin) return;
+        if (!rotatingBookRef.current) return; // S'assurer que l'élément existe
+
         let animationFrameId;
         let lastTime = performance.now();
         const speedPerMs = (360 / 16000) * spinDirection; 
         
         const animate = (time) => {
+            if (!rotatingBookRef.current) return; // Double sécurité
             const delta = time - lastTime;
             lastTime = time;
-            setRotY(prev => prev + (delta * speedPerMs));
+            // On met à jour la rotation via le ref, sans déclencher de re-render React
+            const newRotY = (parseFloat(rotatingBookRef.current.dataset.rotY || '0') + (delta * speedPerMs));
+            rotatingBookRef.current.style.transform = `rotateX(${rotX}deg) rotateY(${newRotY}deg)`;
+            rotatingBookRef.current.dataset.rotY = newRotY; // On stocke la nouvelle valeur
             animationFrameId = requestAnimationFrame(animate);
         };
         animationFrameId = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(animationFrameId);
-    }, [autoSpin, spinDirection]);
+    }, [autoSpin, spinDirection, rotX]); // rotX est toujours dans le state, on le garde en dépendance
 
     const onPointerDown = (e) => {
         setAutoSpin(false); 
         if (spinTimeoutRef.current) clearTimeout(spinTimeoutRef.current);
         setIsDragging(true);
-        dragInfo.current = { startX: e.clientX, startY: e.clientY, initRotY: rotY, initRotX: rotX, hasDragged: false };
+        // On lit la rotation actuelle directement depuis l'élément DOM
+        const currentRotY = parseFloat(rotatingBookRef.current?.dataset.rotY || rotY);
+        dragInfo.current = { startX: e.clientX, startY: e.clientY, initRotY: currentRotY, initRotX: rotX, hasDragged: false };
         e.currentTarget.setPointerCapture(e.pointerId);
     };
 
@@ -109,13 +118,21 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         
         if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) dragInfo.current.hasDragged = true;
         
-        setRotY(dragInfo.current.initRotY + deltaX * 0.6);
+        const newRotY = dragInfo.current.initRotY + deltaX * 0.6;
         setRotX(Math.max(-60, Math.min(60, dragInfo.current.initRotX - deltaY * 0.6))); 
+
+        // On met à jour le style directement, sans passer par le state pour rotY
+        if (rotatingBookRef.current) {
+            rotatingBookRef.current.style.transform = `rotateX(${rotX}deg) rotateY(${newRotY}deg)`;
+            rotatingBookRef.current.dataset.rotY = newRotY;
+        }
     };
 
     const onPointerUp = (e) => {
         setIsDragging(false);
         if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+        // On synchronise le state React avec la valeur du DOM une fois le drag terminé
+        if (rotatingBookRef.current) setRotY(parseFloat(rotatingBookRef.current.dataset.rotY || '0'));
         if (spinTimeoutRef.current) clearTimeout(spinTimeoutRef.current);
         spinTimeoutRef.current = setTimeout(() => setAutoSpin(true), 1500);
     };
@@ -297,7 +314,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                                     onClick={handleReadClick}
                                     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
                                     
-                                    <div className="w-full h-full relative" style={{ 
+                                    <div ref={rotatingBookRef} data-rot-y={rotY} className="w-full h-full relative" style={{ 
                                         transformStyle: 'preserve-3d', 
                                         transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)`,
                                         transition: isDragging ? 'none' : (isOpening ? 'transform 0.4s ease-out' : (isClosing ? 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)' : 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)')) 
