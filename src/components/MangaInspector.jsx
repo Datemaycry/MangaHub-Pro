@@ -170,17 +170,34 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         setRotX(0);
         setRotY(spineIsRight ? -90 : 90);
 
-        if (inspectingCoords && bookContainerRef.current && uiRef.current) {
-            const targetCenterX = inspectingCoords.left + (inspectingCoords.width / 2);
-            const targetCenterY = inspectingCoords.top + (inspectingCoords.height / 2);
-            const screenCenterX = window.innerWidth / 2;
-            const screenCenterY = window.innerHeight / 2;
+        // Recherche en temps réel de la nouvelle position du livre sur l'étagère
+        let targetRect = inspectingCoords;
+        const bookEl = document.getElementById(`book-${manga.id}`);
+        if (bookEl) {
+            const bRect = bookEl.getBoundingClientRect();
+            if (bRect.width > 0) targetRect = { top: bRect.top, left: bRect.left, width: bRect.width, height: bRect.height };
+        } else {
+            const searchBook = document.getElementById(`search-book-${manga.id}`);
+            if (searchBook) {
+                const sRect = searchBook.getBoundingClientRect();
+                if (sRect.width > 0) targetRect = { top: sRect.top, left: sRect.left, width: sRect.width, height: sRect.height };
+            }
+        }
+
+        if (targetRect && bookContainerRef.current && uiRef.current) {
+            const targetCenterX = targetRect.left + (targetRect.width / 2);
+            const targetCenterY = targetRect.top + (targetRect.height / 2);
             
-            const moveX = (targetCenterX - screenCenterX) / globalScale;
-            const moveY = (targetCenterY - screenCenterY) / globalScale;
+            // Obtenir le centre ACTUEL du livre dans l'inspecteur pour un calcul parfait
+            const bookRect = bookContainerRef.current.getBoundingClientRect();
+            const bookCenterX = bookRect.left + (bookRect.width / 2);
+            const bookCenterY = bookRect.top + (bookRect.height / 2);
+            
+            const moveX = (targetCenterX - bookCenterX) / globalScale;
+            const moveY = (targetCenterY - bookCenterY) / globalScale;
             
             const bookVisualHeight = MANGA_PROPS.h * globalScale * scale;
-            const targetScale = inspectingCoords.height / bookVisualHeight;
+            const targetScale = targetRect.height / bookVisualHeight;
 
             uiRef.current.style.transition = 'opacity 0.2s ease';
             uiRef.current.style.opacity = '0'; 
@@ -198,14 +215,18 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         setTimeout(() => {
             onClose();
         }, 500);
-    }, [isClosing, inspectingCoords, globalScale, scale, onClose]);
+    }, [isClosing, inspectingCoords, globalScale, scale, onClose, manga.id, spineIsRight]);
 
     // Déclenche la fermeture si on vient du lecteur
     useEffect(() => {
         if (startClosing) {
-            const timer = requestAnimationFrame(() => {
-                handleClose();
-            });
+            // Délai critique de 50ms pour laisser React mettre à jour l'ordre de la bibliothèque 
+            // et le navigateur recalculer le layout, afin de cibler la position exacte.
+            const timer = setTimeout(() => {
+                requestAnimationFrame(() => {
+                    handleClose();
+                });
+            }, 50);
             return () => cancelAnimationFrame(timer);
         }
     }, [startClosing, handleClose]);
@@ -214,13 +235,22 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     useLayoutEffect(() => {
         if (startClosing || !inspectingCoords || !bookContainerRef.current || !uiRef.current) return;
 
+        // Sécurité mathématique pour l'entrée : cibler le centre local plutôt que l'écran
+        const oldTransform = bookContainerRef.current.style.transform;
+        bookContainerRef.current.style.transform = 'translate(0px, 0px) scale(1)';
+        const destRect = bookContainerRef.current.getBoundingClientRect();
+        bookContainerRef.current.style.transform = oldTransform;
+
+        if (destRect.width === 0) return;
+
         const startCenterX = inspectingCoords.left + (inspectingCoords.width / 2);
         const startCenterY = inspectingCoords.top + (inspectingCoords.height / 2);
-        const screenCenterX = window.innerWidth / 2;
-        const screenCenterY = window.innerHeight / 2;
+        
+        const destCenterX = destRect.left + (destRect.width / 2);
+        const destCenterY = destRect.top + (destRect.height / 2);
 
-        const deltaX = (startCenterX - screenCenterX) / globalScale;
-        const deltaY = (startCenterY - screenCenterY) / globalScale;
+        const deltaX = (startCenterX - destCenterX) / globalScale;
+        const deltaY = (startCenterY - destCenterY) / globalScale;
 
         const bookVisualHeight = MANGA_PROPS.h * globalScale * scale;
         const deltaScale = inspectingCoords.height / bookVisualHeight;

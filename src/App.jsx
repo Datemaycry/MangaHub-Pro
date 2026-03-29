@@ -44,8 +44,20 @@ window.addEventListener('touchmove', function(e) {
 polyfill({ holdToDrag: 250 });
 
 const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
-    const url = getCachedUrl(file);
-    return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : null;
+    const [url, setUrl] = useState(() => {
+        if (!file) return null;
+        const key = getFileKey(file);
+        return key && globalImageCache.has(key) ? globalImageCache.get(key) : null;
+    });
+
+    useEffect(() => {
+        if (!url && file) {
+            const timer = setTimeout(() => setUrl(getCachedUrl(file)), 0);
+            return () => clearTimeout(timer);
+        }
+    }, [file, url]);
+
+    return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : <div className="w-full h-full bg-theme-800/20 animate-pulse"></div>;
 });
 
 // --- APPLICATION ROOT ---
@@ -340,7 +352,11 @@ const App = () => {
     // 👉 La fonction modifiée pour capturer les coordonnées
     const handleInspectManga = useCallback((manga, e) => {
         if (e && e.currentTarget) {
-            const rect = e.currentTarget.getBoundingClientRect();
+            let rect = e.currentTarget.getBoundingClientRect();
+            const coverNode = e.currentTarget.querySelector('.manga-cover-image');
+            if (coverNode) {
+                rect = coverNode.getBoundingClientRect();
+            }
             setInspectingCoords({
                 top: rect.top,
                 left: rect.left,
@@ -380,13 +396,53 @@ const App = () => {
         }
     }, [animatingManga?.phase]);
 
+    const saveProgress = useCallback(async (mangaId, newCursor, isFinished = false, currentTotalSpreads = 0) => {
+        const db = await initDB();
+        const tx = db.transaction(STORE_MANGAS, "readwrite");
+        const store = tx.objectStore(STORE_MANGAS);
+        let updatedManga = null;
+        tx.oncomplete = () => { 
+            if (updatedManga) setMangas(prev => prev.map(m => m.id === mangaId ? updatedManga : m)); 
+        };
+        store.get(mangaId).onsuccess = (e) => {
+            const manga = e.target.result;
+            if (manga) {
+                manga.progress = newCursor; manga.isFinished = isFinished;
+                if (currentTotalSpreads > 0) manga.totalSpreads = currentTotalSpreads;
+                if (latestBookmarkRef.current !== undefined) manga.bookmark = latestBookmarkRef.current;
+                if (isFinished) { manga.bookmark = null; latestBookmarkRef.current = null; }
+                manga.lastRead = Date.now();
+                updatedManga = manga;
+                store.put(manga);
+                if (isFinished && currentManga && currentManga.id === mangaId && currentManga.bookmark != null) {
+                    setCurrentManga(prev => ({...prev, bookmark: null}));
+                }
+            }
+        };
+    }, [currentManga]);
+
     const handleCloseReader = useCallback((e) => {
         if (e && e.stopPropagation) e.stopPropagation();
         if (currentManga && allSpreads) saveProgress(currentManga.id, cursor, cursor >= allSpreads.length - 1, allSpreads.length);
 
         if (lastOpenRect && currentManga) {
+            let rect = lastOpenRect;
+            
+            // 👉 On récupère les coordonnées fraîches du livre juste avant l'animation
+            const bookEl = document.getElementById(`book-${currentManga.id}`);
+            if (bookEl) {
+                const bRect = bookEl.getBoundingClientRect();
+                if (bRect.width > 0) rect = { top: bRect.top, left: bRect.left, width: bRect.width, height: bRect.height };
+            } else {
+                const searchBook = document.getElementById(`search-book-${currentManga.id}`);
+                if (searchBook) {
+                    const sRect = searchBook.getBoundingClientRect();
+                    if (sRect.width > 0) rect = { top: sRect.top, left: sRect.left, width: sRect.width, height: sRect.height };
+                }
+            }
+
             setView('hub');
-            setInspectingCoords(lastOpenRect);
+            setInspectingCoords(rect);
             setInspectingManga(currentManga);
             setIsClosingReaderWithAnim(true);
             setCurrentManga(null);
@@ -397,7 +453,7 @@ const App = () => {
                 setView('hub'); setZenMode(false); loadMangas(); setIsExitingReader(false);
             }, 400);
         }
-    }, [currentManga, allSpreads, cursor, loadMangas, lastOpenRect]);
+    }, [currentManga, allSpreads, cursor, loadMangas, lastOpenRect, saveProgress]);
 
     const handleExport = async () => {
         setLoading(true); setImportProgress("Préparation export JSON...");
@@ -626,31 +682,6 @@ const App = () => {
         } catch (error) { console.error(error); showToast(`Erreur lors de l'export ${format.toUpperCase()}.`, "error"); setLoading(false); setImportProgress(null); }
     };
 
-    const saveProgress = useCallback(async (mangaId, newCursor, isFinished = false, currentTotalSpreads = 0) => {
-        const db = await initDB();
-        const tx = db.transaction(STORE_MANGAS, "readwrite");
-        const store = tx.objectStore(STORE_MANGAS);
-        let updatedManga = null;
-        tx.oncomplete = () => { 
-            if (updatedManga) setMangas(prev => prev.map(m => m.id === mangaId ? updatedManga : m)); 
-        };
-        store.get(mangaId).onsuccess = (e) => {
-            const manga = e.target.result;
-            if (manga) {
-                manga.progress = newCursor; manga.isFinished = isFinished;
-                if (currentTotalSpreads > 0) manga.totalSpreads = currentTotalSpreads;
-                if (latestBookmarkRef.current !== undefined) manga.bookmark = latestBookmarkRef.current;
-                if (isFinished) { manga.bookmark = null; latestBookmarkRef.current = null; }
-                manga.lastRead = Date.now();
-                updatedManga = manga;
-                store.put(manga);
-                if (isFinished && currentManga && currentManga.id === mangaId && currentManga.bookmark != null) {
-                    setCurrentManga(prev => ({...prev, bookmark: null}));
-                }
-            }
-        };
-    }, [currentManga]);
-
     useEffect(() => {
         if (view === 'reader' && currentManga && allSpreads) {
             const timer = setTimeout(() => { saveProgress(currentManga.id, cursor, cursor >= (allSpreads.length || 1) - 1, allSpreads.length); }, 500);
@@ -658,7 +689,7 @@ const App = () => {
         }
     }, [cursor, currentManga, view, allSpreads]);
     
-    const toggleBookmark = async (e) => {
+    const toggleBookmark = useCallback(async (e) => {
         if (e && e.stopPropagation) e.stopPropagation();
         if (!currentManga) return;
         triggerHaptic(50);
@@ -674,7 +705,7 @@ const App = () => {
             setMangas(prev => prev.map(m => m.id === currentManga.id ? { ...m, bookmark: newBookmark } : m));
             showToast(newBookmark !== null ? "Marque-page ajouté" : "Marque-page retiré", "info"); 
         };
-    };
+    }, [currentManga, cursor, showToast]);
 
     const executeUpdateManga = async (e) => {
         e.preventDefault(); 
@@ -930,9 +961,9 @@ const App = () => {
     const handleInspectorNextAction = useCallback(() => { triggerHaptic(30); setInspectingManga(inspectorNext); }, [inspectorNext]);
 
     return (
-        <div className="h-full w-full bg-black text-white flex flex-col items-center">
+        <div className="h-full w-full bg-black text-white flex flex-col items-center relative overflow-hidden">
             
-            <div className="w-full h-full" style={{ display: view === 'hub' ? 'flex' : 'none' }}>
+            <div className="w-full h-full absolute inset-0" style={{ visibility: view === 'hub' ? 'visible' : 'hidden', opacity: view === 'hub' ? 1 : 0, pointerEvents: view === 'hub' ? 'auto' : 'none' }}>
                 <HubView 
                     isActive={view === 'hub'}
                     mangas={mangas} animatingManga={animatingManga} deferredPrompt={deferredPrompt} handleInstallApp={handleInstallApp}

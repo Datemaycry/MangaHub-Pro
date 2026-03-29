@@ -3,12 +3,24 @@ import JSZip from 'jszip';
 import { IconSettings, IconUpload, IconChevronLeft, IconChevronRight, IconTrash, IconCheck } from './Icons';
 import { 
     initDB, serializeFile, triggerHaptic, EXT_MIME, 
-    STORE_MANGAS, STORE_PAGES, getCachedUrl, optimizeImage
+    STORE_MANGAS, STORE_PAGES, getCachedUrl, optimizeImage, getFileKey, globalImageCache
 } from '../utils';
 
 const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
-    const url = getCachedUrl(file);
-    return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : null;
+    const [url, setUrl] = useState(() => {
+        if (!file) return null;
+        const key = getFileKey(file);
+        return key && globalImageCache.has(key) ? globalImageCache.get(key) : null;
+    });
+
+    useEffect(() => {
+        if (!url && file) {
+            const timer = setTimeout(() => setUrl(getCachedUrl(file)), 0);
+            return () => clearTimeout(timer);
+        }
+    }, [file, url]);
+
+    return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : <div className="w-full h-full bg-theme-800/20 animate-pulse"></div>;
 });
 
 export const GroupInput = memo(({ existingGroups = [], value, onChange, name, placeholder, inputClass = "rounded-xl px-4 py-4 text-sm" }) => {

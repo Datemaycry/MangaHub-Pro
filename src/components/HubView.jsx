@@ -1,16 +1,27 @@
-import React, { useState, useEffect, memo, useMemo, useDeferredValue, useCallback } from 'react';
+import React, { useState, useEffect, memo, useMemo, useDeferredValue, useCallback, useRef } from 'react';
 import {
     IconSearch, IconFilter, IconCheckSquare, IconBookPlus, IconSettings,
     IconFloppyUp, IconFloppyDown, IconTrash, IconCheck
 } from './Icons';
 import {
-    SHELF_THEMES, SHELF_ENGRAVINGS, getSafeStorage, setSafeStorage, MANGA_PROPS, getCachedUrl
+    SHELF_THEMES, SHELF_ENGRAVINGS, getSafeStorage, setSafeStorage, MANGA_PROPS, getCachedUrl, getFileKey, globalImageCache
 } from '../utils';
 
-// On recrée ce petit composant ici pour que la bibliothèque puisse afficher les images
 const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
-    const url = getCachedUrl(file);
-    return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : null;
+    const [url, setUrl] = useState(() => {
+        if (!file) return null;
+        const key = getFileKey(file);
+        return key && globalImageCache.has(key) ? globalImageCache.get(key) : null;
+    });
+
+    useEffect(() => {
+        if (!url && file) {
+            const timer = setTimeout(() => setUrl(getCachedUrl(file)), 0);
+            return () => clearTimeout(timer);
+        }
+    }, [file, url]);
+
+    return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : <div className="w-full h-full bg-theme-800/20 animate-pulse"></div>;
 });
 
 const HubView = memo(({
@@ -34,10 +45,11 @@ const HubView = memo(({
     const [sortOrder, setSortOrder] = useState(() => getSafeStorage('mangaHubSortOrder', 'group'));
 
     // OPTIMISATION : Mode sommeil. On ne met à jour les données que si l'étagère est visible.
-    const [displayMangas, setDisplayMangas] = useState(mangas || []);
-    useEffect(() => {
-        if (isActive) setDisplayMangas(mangas);
-    }, [mangas, isActive]);
+    const frozenMangasRef = useRef(mangas || []);
+    if (isActive) {
+        frozenMangasRef.current = mangas;
+    }
+    const displayMangas = isActive ? mangas : frozenMangasRef.current;
 
     const searchResults = useMemo(() => {
         if (deferredSearch.trim().length < 2) return [];
@@ -318,7 +330,7 @@ const HubView = memo(({
                                     }}
                                     className="flex items-center gap-4 p-3 rounded-2xl bg-slate-900/50 hover:bg-slate-800/70 cursor-pointer transition-colors border border-slate-800 hover:border-theme-500/50 shadow-md"
                                 >
-                                    <div className="w-16 h-24 flex-none rounded-lg overflow-hidden bg-black shadow-lg border border-black/50">
+                                    <div id={`search-book-${m.id}`} className="manga-cover-image w-16 h-24 flex-none rounded-lg overflow-hidden bg-black shadow-lg border border-black/50">
                                         <StackThumbnail file={m.cover} />
                                     </div>
                                     <div className="flex-1 overflow-hidden">
@@ -436,7 +448,7 @@ const HubView = memo(({
                                             <div key={m.id} className="flex-none flex items-end relative group/book hover:z-[100]" style={{ height: 'var(--row-total)', paddingTop: 'var(--row-pt)', paddingBottom: 'var(--board-h)' }}>
                                                 
                                                 {/* 👉 Ici, on transmet l'événement "e" avec "setInspectingManga(m, e)" */}
-                                                <div draggable={!isSelectionMode} onDragStart={(e) => {
+                                                <div id={`book-${m.id}`} draggable={!isSelectionMode} onDragStart={(e) => {
                                                     if (isSelectionMode) { e.preventDefault(); return; }
                                                     e.dataTransfer.effectAllowed = 'move';
                                                     e.dataTransfer.setData('text/plain', m.id);
@@ -454,7 +466,7 @@ const HubView = memo(({
                                                 }} onPointerEnter={handleBookPointerEnter} onClick={(e) => { 
                                                     if (isSelectionMode) { e.preventDefault(); toggleMangaSelection(m.id); return; }
                                                     setInspectingManga(m, e);
-                                                }} className={`manga-cover-image relative flex-none cursor-pointer z-10 rounded-[2px] ${isDeleting ? 'scale-0 opacity-0 pointer-events-none' : isInspected ? 'opacity-0 pointer-events-none' : isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : 'hover:-translate-y-5 hover:shadow-[0_20px_30px_-8px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.15)]'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))`, boxShadow: '0 8px 10px -4px rgba(0,0,0,0.8)', transition: isDeleting ? 'transform 0.4s cubic-bezier(0.5, 0, 1, 0.5), opacity 0.4s ease-out' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease' }}>
+                                                }} className={`manga-cover-image relative flex-none cursor-pointer z-10 rounded-[2px] ${isDeleting ? 'scale-0 opacity-0 pointer-events-none' : isInspected ? 'opacity-0 pointer-events-none' : isSelected ? 'ring-2 ring-theme-500 scale-95 opacity-80' : 'hover:-translate-y-5 hover:shadow-[0_20px_30px_-8px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.15)]'}`} style={{ backgroundColor: '#0f172a', height: '95%', width: `calc(var(--row-book-h) * 0.95 * (${bd} / ${bh}))`, boxShadow: '0 8px 10px -4px rgba(0,0,0,0.8)', transition: isDeleting ? 'transform 0.4s cubic-bezier(0.5, 0, 1, 0.5), opacity 0.4s ease-out' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease', willChange: 'transform' }}>
                                                     
                                                 <div className="peek-popup absolute top-2 left-[calc(100%+12px)] bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(var(--theme-rgb),0.3)] opacity-0 group-hover/book:opacity-100 group-hover/book:translate-y-0 pointer-events-none z-[200] overflow-hidden border border-white/10 flex flex-col w-[140px] sm:w-[180px] origin-top-left translate-y-2" style={{ transition: 'opacity 0.2s ease, transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1)' }}>
                                                         <div className="relative w-full bg-black border-b border-white/10" style={{ aspectRatio: `${bw} / ${bh}` }}>
