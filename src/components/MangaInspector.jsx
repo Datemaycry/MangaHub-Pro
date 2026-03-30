@@ -45,7 +45,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
     const spineIsRight = isRTL;
 
     // --- LOGIQUE INTERACTION 3D ---
-    const [rotY, setRotY] = useState(() => startClosing ? (isRTL ? -15 : 15) : (isRTL ? -90 : 90));
+    const [rotY, setRotY] = useState(() => startClosing ? (isRTL ? 25 : -25) : (isRTL ? -90 : 90));
     const [rotX, setRotX] = useState(() => startClosing ? 5 : 0);
     const [isDragging, setIsDragging] = useState(false);
     const [autoSpin, setAutoSpin] = useState(!startClosing);
@@ -152,6 +152,13 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         setRotY(spineIsRight ? 25 : -25); 
         setIsOpening(true);
 
+        // Fait disparaître immédiatement les boutons et le titre pour ne voir que le livre
+        if (uiRef.current) {
+            uiRef.current.style.transition = 'opacity 0.2s ease-out';
+            uiRef.current.style.opacity = '0';
+            uiRef.current.style.pointerEvents = 'none';
+        }
+
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic(50);
 
         // CORRECTION : On passe "null" pour l'évenement, et "true" pour skipAnimation !
@@ -174,22 +181,39 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         let targetRect = inspectingCoords;
         const bookEl = document.getElementById(`book-${manga.id}`);
         if (bookEl) {
+            // Annule temporairement l'effet de survol (hover) pour cibler la vraie position de repos au pixel près
+            const oldT = bookEl.style.transform;
+            bookEl.style.transform = 'none';
             const bRect = bookEl.getBoundingClientRect();
+            bookEl.style.transform = oldT;
             if (bRect.width > 0) targetRect = { top: bRect.top, left: bRect.left, width: bRect.width, height: bRect.height };
         } else {
             const searchBook = document.getElementById(`search-book-${manga.id}`);
             if (searchBook) {
+                const oldT = searchBook.style.transform;
+                searchBook.style.transform = 'none';
                 const sRect = searchBook.getBoundingClientRect();
+                searchBook.style.transform = oldT;
                 if (sRect.width > 0) targetRect = { top: sRect.top, left: sRect.left, width: sRect.width, height: sRect.height };
             }
         }
 
-        if (targetRect && bookContainerRef.current && uiRef.current) {
+        if (targetRect && bookContainerRef.current && uiRef.current && rotatingBookRef.current) {
             const targetCenterX = targetRect.left + (targetRect.width / 2);
             const targetCenterY = targetRect.top + (targetRect.height / 2);
             
-            // Obtenir le centre ACTUEL du livre dans l'inspecteur pour un calcul parfait
+            // Obtenir le centre de base du livre SANS ses transformations actuelles ni rotation 3D
+            const oldTransform = bookContainerRef.current.style.transform;
+            const oldRot = rotatingBookRef.current.style.transform;
+            
+            bookContainerRef.current.style.transform = 'translate(0px, 0px) scale(1)';
+            rotatingBookRef.current.style.transform = 'none';
+            
             const bookRect = bookContainerRef.current.getBoundingClientRect();
+            
+            bookContainerRef.current.style.transform = oldTransform;
+            rotatingBookRef.current.style.transform = oldRot;
+            
             const bookCenterX = bookRect.left + (bookRect.width / 2);
             const bookCenterY = bookRect.top + (bookRect.height / 2);
             
@@ -201,6 +225,8 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
 
             uiRef.current.style.transition = 'opacity 0.2s ease';
             uiRef.current.style.opacity = '0'; 
+
+            void bookContainerRef.current.offsetHeight;
 
             bookContainerRef.current.style.transformOrigin = 'center center';
             bookContainerRef.current.style.transition = 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)'; 
@@ -233,15 +259,21 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
 
     // ✨ L'ENTRÉE MAGIQUE (Bibliothèque -> Tomb Raider)
     useLayoutEffect(() => {
-        if (startClosing || !inspectingCoords || !bookContainerRef.current || !uiRef.current) return;
+        if (startClosing || !inspectingCoords || !bookContainerRef.current || !uiRef.current || !rotatingBookRef.current) return;
 
         // Sécurité mathématique pour l'entrée : cibler le centre local plutôt que l'écran
         const oldTransform = bookContainerRef.current.style.transform;
+        const oldRot = rotatingBookRef.current.style.transform;
+        
         bookContainerRef.current.style.transform = 'translate(0px, 0px) scale(1)';
+        rotatingBookRef.current.style.transform = 'none';
+        
         const destRect = bookContainerRef.current.getBoundingClientRect();
+        
         bookContainerRef.current.style.transform = oldTransform;
+        rotatingBookRef.current.style.transform = oldRot;
 
-        if (destRect.width === 0) return;
+        if (destRect.height === 0) return;
 
         const startCenterX = inspectingCoords.left + (inspectingCoords.width / 2);
         const startCenterY = inspectingCoords.top + (inspectingCoords.height / 2);
@@ -266,7 +298,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
         requestAnimationFrame(() => {
             if (!bookContainerRef.current || !uiRef.current) return;
             bookContainerRef.current.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
-            bookContainerRef.current.style.transform = 'translate(0px, 0px) scale(1)';
+            bookContainerRef.current.style.transform = `translate(0px, 0px) scale(1)`;
             
             uiRef.current.style.transition = 'opacity 0.4s ease 0.2s';
             uiRef.current.style.opacity = '1';
@@ -332,18 +364,20 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
             <div className="relative flex items-center justify-center pointer-events-none" style={{ width: '600px', height: '850px', transform: `scale(${globalScale})`, transformOrigin: 'center center' }}>
                 
                 <div className="relative flex flex-col items-center justify-center w-full px-4 pointer-events-auto" onClick={e => e.stopPropagation()}>
-                    <div style={{ perspective: '2000px' }} className="flex justify-center items-center z-[1900] h-[520px] w-full mt-4">
+                    <div style={{ 
+                        perspective: (isClosing || startClosing) ? '100000px' : '2000px',
+                        transition: 'perspective 0.5s ease'
+                    }} className="flex justify-center items-center z-[1900] h-[520px] w-full mt-4">
                         <div style={{ ...trStyle, transformStyle: 'preserve-3d' }}>
                             
                             <div ref={bookContainerRef} className="origin-center flex justify-center items-center">
                                 <div id="inspect-book-container" className="relative cursor-grab active:cursor-grabbing group touch-none" 
                                     style={{ 
                                         width: `${bw}px`, height: `${bh}px`, 
-                                        animation: 'artifactFloat 6s ease-in-out infinite',
-                                        animationPlayState: isOpening ? 'paused' : 'running',
+                                        animation: (isOpening || startClosing || isClosing) ? 'none' : 'artifactFloat 6s ease-in-out infinite',
                                         transformStyle: 'preserve-3d', 
                                         transform: `scale(${isOpening ? 4 : scale}) translateY(${isOpening ? '10%' : '0px'})`,
-                                        transition: isOpening ? 'transform 0.8s cubic-bezier(0.6, 0.05, 0.15, 0.95)' : 'none'
+                                        transition: isOpening ? 'transform 0.8s cubic-bezier(0.6, 0.05, 0.15, 0.95)' : 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
                                     }} 
                                     onClick={handleReadClick}
                                     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
@@ -411,7 +445,7 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                         </div>
                     </div>
 
-                    <div ref={uiRef} className={`flex flex-col items-center gap-6 w-full max-w-lg z-[2100] mt-6 transition-opacity ${isOpening ? 'opacity-0 duration-150 pointer-events-none' : 'opacity-100'}`}>
+                    <div ref={uiRef} className={`flex flex-col items-center gap-6 w-full max-w-lg z-[2100] mt-6 transition-opacity ${isOpening || startClosing ? 'opacity-0 duration-150 pointer-events-none' : 'opacity-100'}`}>
                         <div className="text-center px-4 w-full">
                             <span className="text-theme-400 font-black uppercase tracking-widest text-xs mb-2 block drop-shadow-md">
                                 {manga.group || "Volume Indépendant"}
