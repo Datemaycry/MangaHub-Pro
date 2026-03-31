@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useLayoutEffect } from 'react';
-import { IconChevronLeft, IconChevronRight, IconReverse, IconPlay, IconSettings } from './Icons';
+import { IconChevronLeft, IconChevronRight, IconReverse, IconPlay, IconSettings, IconFlag, IconAward } from './Icons';
 import { getCachedUrl, MANGA_PROPS } from '../utils';
 
 const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
@@ -453,11 +453,37 @@ const MangaInspector = memo(({ manga, onClose, onRead, isAnimatingOut, onOpenMen
                             <h2 className="text-3xl font-black text-white uppercase tracking-tighter drop-shadow-[0_0_20px_rgba(var(--theme-rgb),0.8)] line-clamp-2 w-full">
                                 {manga.title}
                             </h2>
-                        {manga.artist && (
-                            <span className="text-theme-200/70 font-bold text-sm mt-2 block drop-shadow-md">
-                                🎨 {manga.artist}
-                            </span>
-                        )}
+                            {manga.artist && (
+                                <span className="text-theme-200/70 font-bold text-sm mt-2 block drop-shadow-md">
+                                    🎨 {manga.artist}
+                                </span>
+                            )}
+
+                            {manga.chapters && manga.chapters.length > 0 && (
+                                <div className="mt-6 w-full animate-in">
+                                    <div className="flex items-center gap-2 mb-3 px-2">
+                                        <IconFlag className="w-4 h-4 text-theme-400" />
+                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-theme-400/80">Liste des Chapitres</span>
+                                        <div className="h-px flex-1 bg-theme-600/20 ml-2"></div>
+                                    </div>
+                                    <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar snap-x no-scrollbar">
+                                        {manga.chapters.map((ch, idx) => (
+                                            <button 
+                                                key={idx}
+                                                onClick={(e) => { e.stopPropagation(); onRead(manga, ch.startIndex); }}
+                                                className="snap-start flex-none flex flex-col items-center gap-2 group/ch"
+                                            >
+                                                <div className="w-16 h-10 bg-black/40 backdrop-blur-md rounded-lg border border-theme-600/30 group-hover/ch:border-theme-400 group-hover/ch:bg-theme-600/20 transition-all flex items-center justify-center relative overflow-hidden">
+                                                    <span className="text-[10px] font-black text-theme-400 group-hover/ch:text-theme-200">{ch.startIndex + 1}</span>
+                                                    <div className="absolute inset-0 bg-gradient-to-tr from-theme-600/10 to-transparent opacity-0 group-hover/ch:opacity-100 transition-opacity"></div>
+                                                </div>
+                                                <span className="text-[9px] font-black uppercase tracking-tight text-white/50 group-hover/ch:text-white truncate w-16 text-center">{ch.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {manga.bookmark != null && (
                                 <span className="inline-block mt-4 bg-theme-600/30 border border-theme-500 text-theme-100 text-sm font-black px-5 py-2 rounded-full shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)]">
                                     Reprendre page {manga.bookmark + 1}

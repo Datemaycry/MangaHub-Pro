@@ -1,7 +1,7 @@
 import React, { useState, useEffect, memo, useMemo, useDeferredValue, useCallback, useRef } from 'react';
 import {
     IconSearch, IconFilter, IconCheckSquare, IconBookPlus, IconSettings,
-    IconFloppyUp, IconFloppyDown, IconTrash, IconCheck
+    IconFloppyUp, IconFloppyDown, IconTrash, IconCheck, IconMaximize, IconMinimize
 } from './Icons';
 import {
     SHELF_THEMES, SHELF_ENGRAVINGS, getSafeStorage, setSafeStorage, MANGA_PROPS, getCachedUrl, getFileKey, globalImageCache
@@ -29,7 +29,8 @@ const HubView = memo(({
     setIsAdding, showGlobalSettings, setShowGlobalSettings, appTheme,
     setAppTheme, shelfTheme, setShelfTheme, handleExport, handleImport, setPurgeConfirm, shelfEngraving, setShelfEngraving,
     setActiveCardMenu, isSelectionMode, selectedMangas, toggleMangaSelection, toggleSelectionMode, handleReorderManga,
-    toggleSelectAllMangas, setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga, deletingMangas, inspectingMangaId
+    toggleSelectAllMangas, setShowBatchEditModal, setBatchDeleteConfirm, setInspectingManga, deletingMangas, inspectingMangaId,
+    toggleFullscreen, isFullscreen
 }) => {
 
     const isIosSafari = /iphone|ipad|ipod/i.test(navigator.userAgent) && /safari/i.test(navigator.userAgent) && !/crios|fxios|opios|mercury/i.test(navigator.userAgent);
@@ -202,25 +203,29 @@ const HubView = memo(({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 sm:gap-4 flex-none">
+                    <div className="flex items-center gap-2 flex-none">
                         {deferredPrompt && (
-                            <button onClick={handleInstallApp} className="bg-gradient-to-r from-theme-600 to-theme-800 text-white px-3 sm:px-4 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border border-theme-400 shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.9)] text-[10px] sm:text-xs font-black uppercase tracking-wider animate-[pulse_2s_ease-in-out_infinite]" title="Installer MangaHub sur cet appareil">
+                            <button onClick={handleInstallApp} className="hidden sm:flex bg-gradient-to-r from-theme-600 to-theme-800 text-white px-3 sm:px-4 h-10 items-center justify-center rounded-xl active:scale-95 transition border border-theme-400 shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.9)] text-[10px] sm:text-xs font-black uppercase tracking-wider animate-[pulse_2s_ease-in-out_infinite]" title="Installer MangaHub sur cet appareil">
                                 ↓ Installer
                             </button>
                         )}
                         
                         {!isSelectionMode && (
-                            <button onClick={() => setShowTags(!showTags)} className={`w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${showTags || activeTags.length > 0 || sortOrder !== 'group' || showBookmarksOnly ? 'bg-theme-600/20 text-theme-300 border-theme-500' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title="Trier et filtrer">
-                                <IconFilter width="18" height="18" />
+                            <button onClick={() => setShowTags(!showTags)} className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${showTags || activeTags.length > 0 || sortOrder !== 'group' || showBookmarksOnly ? 'bg-theme-600/20 text-theme-300 border-theme-500' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title="Trier et filtrer">
+                                <IconFilter width="16" height="16" />
                             </button>
                         )}
 
-                        <button onClick={toggleSelectionMode} className={`w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${isSelectionMode ? 'bg-theme-600/20 text-theme-300 border-theme-500' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title="Sélection multiple">
-                            <IconCheckSquare width="18" height="18" />
+                        <button onClick={toggleSelectionMode} className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${isSelectionMode ? 'bg-theme-600/20 text-theme-300 border-theme-500' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title="Sélection multiple">
+                            <IconCheckSquare width="16" height="16" />
                         </button>
 
-                        <button onClick={() => setIsAdding(true)} className="bg-theme-600/20 text-theme-400 hover:text-theme-300 w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition border border-theme-500 shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.8)] hover:bg-theme-600/40" title="Ajouter un manga">
-                            <IconBookPlus width="18" height="18" />
+                        <button onClick={() => setIsAdding(true)} className="bg-theme-600/20 text-theme-400 hover:text-theme-300 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl active:scale-95 transition border border-theme-500 shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.8)] hover:bg-theme-600/40" title="Ajouter un manga">
+                            <IconBookPlus width="16" height="16" />
+                        </button>
+
+                        <button onClick={toggleFullscreen} className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl active:scale-95 transition border shadow-[0_0_10px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.6)] ${isFullscreen ? 'bg-theme-600/20 text-theme-300 border-theme-500' : 'bg-black text-theme-400 hover:text-theme-300 hover:bg-theme-900/20 border-theme-600/40'}`} title={isFullscreen ? "Quitter le plein écran (F)" : "Plein Écran (F)"}>
+                            {isFullscreen ? <IconMinimize width="18" height="18" /> : <IconMaximize width="18" height="18" />}
                         </button>
 
                         <div className="relative">
@@ -300,13 +305,13 @@ const HubView = memo(({
             </header>
 
             {showTags && !isSelectionMode && search.length < 2 && (
-                <div className="flex-none flex items-center justify-center gap-2 p-3 bg-black/50 border-b border-theme-900/50 animate-in">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-theme-400/60 mr-2">Trier par:</span>
-                    <button onClick={() => { setSortOrder('group'); setSafeStorage('mangaHubSortOrder', 'group'); }} className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors ${sortOrder === 'group' ? 'bg-theme-600/30 text-theme-200 border-theme-500' : 'bg-transparent text-theme-400/70 border-transparent hover:bg-white/10'}`}>Série</button>
-                    <button onClick={() => { setSortOrder('lastRead'); setSafeStorage('mangaHubSortOrder', 'lastRead'); }} className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors ${sortOrder === 'lastRead' ? 'bg-theme-600/30 text-theme-200 border-theme-500' : 'bg-transparent text-theme-400/70 border-transparent hover:bg-white/10'}`}>Dernière Lecture</button>
-                    <button onClick={() => { setSortOrder('dateAdded'); setSafeStorage('mangaHubSortOrder', 'dateAdded'); }} className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors ${sortOrder === 'dateAdded' ? 'bg-theme-600/30 text-theme-200 border-theme-500' : 'bg-transparent text-theme-400/70 border-transparent hover:bg-white/10'}`}>Date d'Ajout</button>
-                    <div className="w-px h-5 bg-white/10 mx-2"></div>
-                    <button onClick={() => setShowBookmarksOnly(p => !p)} className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors flex items-center gap-1.5 ${showBookmarksOnly ? 'bg-amber-600/30 text-amber-200 border-amber-500' : 'bg-transparent text-amber-400/70 border-transparent hover:bg-white/10'}`}>
+                <div className="flex-none flex items-center gap-2 p-3 bg-black/50 border-b border-theme-900/50 animate-in overflow-x-auto shelf-scroll" style={{ paddingLeft: 'max(12px, env(safe-area-inset-left))', paddingRight: 'max(12px, env(safe-area-inset-right))' }}>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-theme-400/60 flex-none pl-1">Trier par:</span>
+                    <button onClick={() => { setSortOrder('group'); setSafeStorage('mangaHubSortOrder', 'group'); }} className={`flex-none px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors ${sortOrder === 'group' ? 'bg-theme-600/30 text-theme-200 border-theme-500' : 'bg-transparent text-theme-400/70 border-transparent hover:bg-white/10'}`}>Série</button>
+                    <button onClick={() => { setSortOrder('lastRead'); setSafeStorage('mangaHubSortOrder', 'lastRead'); }} className={`flex-none px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors ${sortOrder === 'lastRead' ? 'bg-theme-600/30 text-theme-200 border-theme-500' : 'bg-transparent text-theme-400/70 border-transparent hover:bg-white/10'}`}>Dernière Lecture</button>
+                    <button onClick={() => { setSortOrder('dateAdded'); setSafeStorage('mangaHubSortOrder', 'dateAdded'); }} className={`flex-none px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors ${sortOrder === 'dateAdded' ? 'bg-theme-600/30 text-theme-200 border-theme-500' : 'bg-transparent text-theme-400/70 border-transparent hover:bg-white/10'}`}>Date d'Ajout</button>
+                    <div className="flex-none w-px h-5 bg-white/10 mx-1"></div>
+                    <button onClick={() => setShowBookmarksOnly(p => !p)} className={`flex-none px-3 py-1 rounded-lg text-[10px] font-bold uppercase border transition-colors flex items-center gap-1.5 ${showBookmarksOnly ? 'bg-amber-600/30 text-amber-200 border-amber-500' : 'bg-transparent text-amber-400/70 border-transparent hover:bg-white/10'}`}>
                         <svg viewBox="0 0 24 24" width="12" height="12" fill={showBookmarksOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="3"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                         Marque-pages
                     </button>
@@ -385,7 +390,7 @@ const HubView = memo(({
                         <div className="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
                             <div className="relative min-h-full w-full">
                                 {libraryStructure.flattened.length === 0 && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 pointer-events-none select-none px-8">
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 pointer-events-none select-none px-8" style={{ minHeight: '60vh' }}>
                                         <div className="text-[64px] opacity-20">📚</div>
                                         <div className="text-center">
                                             <p className="text-theme-400 font-black uppercase tracking-widest text-sm mb-2" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.6)' }}>Bibliothèque vide</p>
@@ -393,12 +398,13 @@ const HubView = memo(({
                                         </div>
                                     </div>
                                 )}
-                                <div className="absolute top-0 left-0 w-full flex flex-col pointer-events-none z-0">
+                                 <div className="absolute top-0 left-0 w-full flex flex-col pointer-events-none z-0">
                                     {Array.from({ length: shelfRowsCount }).map((_, i) => {
                                         const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
                                         const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;
                                         return (
                                             <div key={i} className="w-full flex-none flex flex-col justify-end transition-all duration-500" style={{ height: 'var(--row-total)' }}>
+                                                <div className="shelf-led"></div>
                                                 <div className="w-full shadow-[0_20px_40px_rgba(0,0,0,1)] relative z-20 border-t border-white/5" style={{ height: 'var(--board-h)', ...themeDef.board }}>
                                                     {themeDef.texture && <div className={`absolute inset-0 ${themeDef.texture} pointer-events-none`}></div>}
                                                     {engravingDef.style.backgroundImage && (
@@ -410,7 +416,7 @@ const HubView = memo(({
                                     })}
                                 </div>
 
-                                <div className="relative z-10 flex flex-wrap content-start items-start justify-start w-full" style={{ paddingLeft: 'var(--pillar-w)', paddingRight: 'var(--pillar-w)', paddingBottom: 'max(6rem, env(safe-area-inset-bottom))' }}>
+                                <div className="relative z-30 flex flex-wrap content-start items-start justify-start w-full" style={{ paddingLeft: 'var(--pillar-w)', paddingRight: 'var(--pillar-w)', paddingBottom: 'max(6rem, env(safe-area-inset-bottom))' }}>
                                     {libraryStructure.flattened.map((item, i) => {
                                         const themeDef = SHELF_THEMES[shelfTheme] || SHELF_THEMES.mahogany;
                                         const engravingDef = SHELF_ENGRAVINGS[shelfEngraving] || SHELF_ENGRAVINGS.none;

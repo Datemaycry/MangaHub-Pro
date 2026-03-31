@@ -26,7 +26,10 @@ export const IconFloppyDown   = mkIcon(18,18,2.5,{},<><path d="M19 21H5a2 2 0 0 
 export const IconMoreVertical = mkIcon(20,20,2.5,{},<><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></>);
 export const IconPlay         = mkIcon(24,24,2,{fill:'currentColor'},<polygon points="5 3 19 12 5 21 5 3"/>);
 export const IconMaximize     = mkIcon(20,20,2.5,{},<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>);
+export const IconMinimize     = mkIcon(20,20,2.5,{},<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>);
 export const IconCheck        = mkIcon(24,24,2.5,{},<polyline points="20 6 9 17 4 12"/>);
 export const IconCheckSquare  = mkIcon(24,24,2.5,{},<><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></>);
 export const IconFilter       = mkIcon(24,24,2.5,{},<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>);
 export const IconReverse      = mkIcon(24,24,2.5,{},<><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/></>);
+export const IconFlag         = mkIcon(20,20,2.5,{},<><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></>);
+export const IconAward        = mkIcon(20,20,2.5,{},<><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></>);

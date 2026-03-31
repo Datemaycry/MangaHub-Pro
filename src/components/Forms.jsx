@@ -1,9 +1,12 @@
 import React, { useState, useEffect, memo } from 'react';
 import JSZip from 'jszip';
-import { IconSettings, IconUpload, IconChevronLeft, IconChevronRight, IconTrash, IconCheck } from './Icons';
+import { 
+    IconSettings, IconUpload, IconChevronLeft, IconChevronRight, 
+    IconTrash, IconCheck, IconFlag, IconAward 
+} from './Icons';
 import { 
     initDB, serializeFile, triggerHaptic, EXT_MIME, 
-    STORE_MANGAS, STORE_PAGES, getCachedUrl, optimizeImage, getFileKey, globalImageCache
+    STORE_MANGAS, STORE_PAGES, getCachedUrl, optimizeImage, getFileKey, globalImageCache, deserializeFile
 } from '../utils';
 
 const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
@@ -141,23 +144,215 @@ export const TagInput = memo(({ existingTags = [], value, defaultValue, onChange
     );
 });
 
+export const ChapterTitleModal = memo(({ initialValue = "", onConfirm, onCancel }) => {
+    const [val, setVal] = useState(initialValue);
+    return (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade">
+            <div className="bg-slate-900 border border-theme-500/50 p-6 rounded-[24px] w-full max-w-sm shadow-[0_20px_50px_rgba(0,0,0,0.8)] animate-in">
+                <h3 className="text-theme-400 font-black uppercase text-center mb-4 tracking-widest text-sm">Nom du Chapitre</h3>
+                <input 
+                    autoFocus
+                    value={val} 
+                    onChange={e => setVal(e.target.value)} 
+                    placeholder="Ex: Chapitre 1, Combat..."
+                    className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-3 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 mb-6"
+                    onKeyDown={e => { if(e.key === 'Enter') onConfirm(val); if(e.key === 'Escape') onCancel(); }}
+                />
+                <div className="flex gap-3">
+                    <button onClick={onCancel} className="flex-1 py-3 text-[10px] font-black uppercase text-theme-500 border border-theme-800 rounded-xl hover:bg-white/5">Annuler</button>
+                    <button onClick={() => onConfirm(val)} className="flex-1 py-3 text-[10px] font-black uppercase bg-theme-600 text-white rounded-xl shadow-[0_0_15px_rgba(var(--theme-rgb),0.5)]">Valider</button>
+                </div>
+            </div>
+        </div>
+    );
+});
+
+export const ManualPageManageModal = memo(({ pages, chapters = [], onSave, onCancel, isImport = true }) => {
+    const [orderedPages, setOrderedPages] = useState(pages);
+    const [selectedPages, setSelectedPages] = useState(new Set());
+    const [localChapters, setLocalChapters] = useState(chapters); // [{ name, startIndex }]
+    const [editingChapter, setEditingChapter] = useState(null); // { index, name }
+
+    const handleDragStart = (e, index) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', index); };
+    const handleDragOver = (e, index) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+    const handleDrop = (e, index) => {
+        e.preventDefault(); e.stopPropagation();
+        const draggedIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        if (!isNaN(draggedIdx) && draggedIdx !== index) {
+            const newPages = [...orderedPages];
+            const item = newPages.splice(draggedIdx, 1)[0];
+            newPages.splice(index, 0, item);
+            
+            // On ajuste les chapitres si nécessaire (ou on les invalide si c'est trop complexe, mais restons simple : on les garde liés à la page visuelle)
+            setOrderedPages(newPages);
+        }
+    };
+
+    const togglePageSelection = (e, index) => {
+        e.preventDefault(); e.stopPropagation();
+        setSelectedPages(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) next.delete(index);
+            else next.add(index);
+            return next;
+        });
+    };
+
+    const toggleChapter = (index) => {
+        const existing = localChapters.find(c => c.startIndex === index);
+        setEditingChapter({ index, name: existing ? existing.name : "" });
+    };
+
+    const confirmChapter = (name) => {
+        if (!name.trim()) {
+            setLocalChapters(prev => prev.filter(c => c.startIndex !== editingChapter.index));
+        } else {
+            setLocalChapters(prev => {
+                const filtered = prev.filter(c => c.startIndex !== editingChapter.index);
+                return [...filtered, { name: name.trim(), startIndex: editingChapter.index }].sort((a,b) => a.startIndex - b.startIndex);
+            });
+        }
+        setEditingChapter(null);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[400] bg-black/95 p-4 sm:p-8 lg:p-12 flex flex-col animate-fade backdrop-blur-md overflow-hidden">
+            <div className="flex justify-between items-center mb-8 border-b border-theme-600/30 pb-6 flex-none animate-in w-full mx-auto md:px-8">
+                <div>
+                    <h3 className="text-lg sm:text-2xl font-black uppercase text-theme-400 tracking-widest" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>
+                        {isImport ? "Ordre & Chapitres" : "Modifier les Chapitres"}
+                    </h3>
+                    <p className="text-xs text-theme-300/60 uppercase mt-2 font-bold">Signet 🔖 pour créer un chapitre</p>
+                </div>
+                <div className="flex gap-4">
+                    <button type="button" onClick={onCancel} className="hidden sm:block px-6 py-3 border border-theme-800 text-theme-500 rounded-2xl text-[10px] font-black uppercase hover:bg-white/5 active:scale-95">Annuler</button>
+                    <button type="button" onClick={() => onSave(orderedPages, localChapters)} className="bg-theme-600 text-white border border-theme-400 px-6 py-3 sm:px-8 sm:py-4 rounded-2xl text-xs font-black uppercase transition-all shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] hover:scale-105 active:scale-95">
+                        {isImport ? "TERMINER" : "SAUVEGARDER"}
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-32 animate-in w-full mx-auto md:px-8">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 sm:gap-6 lg:gap-8">
+                    {orderedPages.map((f, i) => {
+                        const isSelected = selectedPages.has(i);
+                        const chapter = localChapters.find(c => c.startIndex === i);
+                        return (
+                            <div key={i} draggable onDragStart={(e) => handleDragStart(e, i)} onDragOver={(e) => handleDragOver(e, i)} onDrop={(e) => handleDrop(e, i)}
+                                className={`relative aspect-[3/4.5] bg-black rounded-2xl overflow-hidden border transition-all cursor-move group select-none touch-none ${chapter ? 'border-theme-400 ring-2 ring-theme-500/30' : 'border-theme-600/40'} ${isSelected ? 'opacity-80 scale-[0.98]' : ''}`}
+                            >
+                                <div className="absolute inset-0 pointer-events-none"><StackThumbnail file={f} /></div>
+                                <div className="absolute top-2 left-2 bg-black/80 backdrop-blur-md text-theme-400 font-black text-[10px] min-w-[24px] h-[24px] flex items-center justify-center rounded-lg border border-theme-500/50 shadow-[0_0_10px_rgba(var(--theme-rgb),0.4)] z-10 pointer-events-none">{i + 1}</div>
+                                
+                                {chapter && (
+                                    <div className="absolute top-2 right-2 left-10 bg-theme-600/90 backdrop-blur-md text-white font-black text-[9px] uppercase h-[24px] flex items-center px-3 rounded-lg border border-theme-400 shadow-[0_0_15px_rgba(var(--theme-rgb),0.5)] z-10 truncate translate-x-0 animate-slide-in">
+                                        🔖 {chapter.name}
+                                    </div>
+                                )}
+
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                    <button onClick={(e) => { e.stopPropagation(); toggleChapter(i); }} title="Définir un chapitre" className={`p-3 rounded-2xl border transition-all active:scale-90 ${chapter ? 'bg-theme-600 border-theme-400 text-white' : 'bg-black/60 border-white/20 text-white hover:bg-theme-600 hover:border-theme-400'}`}>
+                                        <IconFlag width="20" height="20" />
+                                    </button>
+                                    {isImport && (
+                                        <button onClick={(e) => togglePageSelection(e, i)} className={`p-3 rounded-2xl border transition-all active:scale-90 ${isSelected ? 'bg-red-600 border-red-400 text-white' : 'bg-black/60 border-white/20 text-white hover:bg-red-600 hover:border-red-400'}`}>
+                                            <IconTrash width="20" height="20" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent p-3 pt-8 pointer-events-none z-10">
+                                    <p className="text-[9px] text-theme-100 font-bold truncate text-center opacity-70 group-hover:opacity-100">{f.name}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {selectedPages.size > 0 && isImport && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl border border-red-500/50 shadow-[0_20px_50px_rgba(220,38,38,0.5)] px-6 py-4 rounded-2xl items-center gap-6 z-[500] animate-slide-up flex">
+                    <span className="font-black text-white text-sm whitespace-nowrap">{selectedPages.size} sélectionnée(s)</span>
+                    <button onClick={() => { setOrderedPages(prev => prev.filter((_, idx) => !selectedPages.has(idx))); setSelectedPages(new Set()); }} className="p-3 bg-red-600 text-white rounded-xl active:scale-95 transition"><IconTrash width="20" height="20" /></button>
+                    <button onClick={() => setSelectedPages(new Set())} className="px-4 py-2 text-theme-400 font-black text-xs uppercase">Annuler</button>
+                </div>
+            )}
+
+            {editingChapter && (
+                <ChapterTitleModal 
+                    initialValue={editingChapter.name} 
+                    onConfirm={confirmChapter} 
+                    onCancel={() => setEditingChapter(null)} 
+                />
+            )}
+        </div>
+    );
+});
+
 export const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingGroups = [], existingTags = [], existingArtists = [] }) => {
+    const [isEditingChapters, setIsEditingChapters] = useState(false);
+    const [existingPages, setExistingPages] = useState([]);
+    const [isLoadingPages, setIsLoadingPages] = useState(false);
+    const [currentChapters, setCurrentChapters] = useState(editingManga?.chapters || []);
+
     if (!editingManga) return null;
+
+    const handleOpenChapters = async () => {
+        setIsLoadingPages(true);
+        const db = await initDB();
+        db.transaction(STORE_PAGES).objectStore(STORE_PAGES).get(editingManga.id).onsuccess = (e) => {
+            if (e.target.result) {
+                setExistingPages(e.target.result.pages.map(p => deserializeFile(p)));
+                setIsEditingChapters(true);
+            }
+            setIsLoadingPages(false);
+        };
+    };
+
+    const handleSaveChapters = (newPages, newChapters) => {
+        setCurrentChapters(newChapters);
+        setIsEditingChapters(false);
+    };
+
+    const handleFinalSubmit = (e) => {
+        e.preventDefault();
+        onSubmit(e, currentChapters);
+    };
+
     return (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 animate-fade backdrop-blur-md">
             <div className="bg-slate-900/95 w-full max-w-lg rounded-[32px] p-8 border border-theme-600/40 shadow-[0_0_40px_rgba(var(--theme-rgb),0.3)] relative animate-in">
                 <h2 className="text-xl font-black mb-8 text-center uppercase text-theme-400" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8)' }}>Modifier</h2>
-                <form onSubmit={onSubmit} className="space-y-5">
-                    <input name="title" defaultValue={editingManga.title} required className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-base text-center outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] transition-all" />
-                    <ArtistInput existingArtists={existingArtists} value={editingManga.artist || ""} name="artist" inputClass="rounded-2xl px-5 py-4 text-base" />
-                    <GroupInput existingGroups={existingGroups} value={editingManga.group || ""} name="group" inputClass="rounded-2xl px-5 py-4 text-base" />
-                    <TagInput existingTags={existingTags} name="tags" defaultValue={(editingManga.tags || []).join(', ')} placeholder="Tags (Ex: Shonen, Action...)" className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-base text-center outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] transition-all" />
+                <form onSubmit={handleFinalSubmit} className="space-y-5">
+                    <input name="title" defaultValue={editingManga.title} required className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-base text-center outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.4)] transition-all" />
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <ArtistInput existingArtists={existingArtists} value={editingManga.artist || ""} name="artist" inputClass="rounded-2xl px-5 py-4 text-sm" />
+                        <GroupInput existingGroups={existingGroups} value={editingManga.group || ""} name="group" inputClass="rounded-2xl px-5 py-4 text-sm" />
+                    </div>
+
+                    <TagInput existingTags={existingTags} name="tags" defaultValue={(editingManga.tags || []).join(', ')} placeholder="Tags (Ex: Shonen, Action...)" className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-sm text-center outline-none transition-all" />
+                    
+                    <button type="button" onClick={handleOpenChapters} disabled={isLoadingPages} className={`w-full py-5 rounded-2xl bg-theme-600/10 border border-theme-500/50 text-theme-100 font-black uppercase text-xs transition-all hover:bg-theme-600/20 active:scale-95 flex items-center justify-center gap-2 ${isLoadingPages ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <IconFlag width="18" height="18" /> {isLoadingPages ? 'Chargement...' : 'Gérer les Chapitres'}
+                        {currentChapters.length > 0 && <span className="bg-theme-600 px-2 py-0.5 rounded-full text-[10px] ml-2">{currentChapters.length}</span>}
+                    </button>
+
                     <div className="flex gap-4 pt-4">
                         <button type="button" onClick={onClose} className="flex-1 py-4 sm:py-5 bg-black text-theme-400 border border-theme-600/40 font-black text-xs rounded-2xl uppercase transition hover:bg-theme-950/30">Annuler</button>
-                        <button type="submit" className="flex-1 py-4 sm:py-5 bg-theme-600/20 text-theme-300 border border-theme-500 font-black text-xs rounded-2xl uppercase transition shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)]">Valider</button>
+                        <button type="submit" className="flex-1 py-4 sm:py-5 bg-theme-600 text-white font-black text-xs rounded-2xl uppercase transition shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] hover:scale-105">Valider</button>
                     </div>
                 </form>
             </div>
+            {isEditingChapters && (
+                <ManualPageManageModal 
+                    pages={existingPages} 
+                    chapters={currentChapters} 
+                    onSave={handleSaveChapters} 
+                    onCancel={() => setIsEditingChapters(false)} 
+                    isImport={false}
+                />
+            )}
         </div>
     );
 });
@@ -232,6 +427,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
     const [coverDoubleFile, setCoverDoubleFile] = useState(null);
     const [coverDoublePreview, setCoverDoublePreview] = useState(null);
 
+    const [chapters, setChapters] = useState([]);
     const [orderedPages, setOrderedPages] = useState([]);
     const [rawPages, setRawPages] = useState([]);
     const [isManualSorting, setIsManualSorting] = useState(false);
@@ -344,27 +540,14 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
             tx.objectStore(STORE_MANGAS).add({
                 id: mangaId, title: formTitle || "Sans titre", group: finalGroup, artist: finalArtist, direction: formMangaDir, tags: newTags, 
                 coverDouble: sCoverDouble, coverStart: sCoverStart, coverEnd: sCoverEnd, cover: sCover,
-                totalPages: orderedPages.length, progress: 0, date: Date.now()
+                totalPages: orderedPages.length, progress: 0, date: Date.now(),
+                chapters: chapters
             });
             
             tx.objectStore(STORE_PAGES).add({ id: mangaId, pages: sOrderedPages });
             
             tx.oncomplete = () => { setLoading(false); setImportProgress(null); triggerHaptic(100); onSuccess(); };
         } catch (error) { console.error(error); setLoading(false); setImportProgress(null); showToast("Erreur lors de l'importation.", "error"); }
-    };
-
-    const handleDragStart = (e, index) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', index); };
-    const handleDragOver = (e, index) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
-    const handleDrop = (e, index) => {
-        e.preventDefault(); e.stopPropagation();
-        const draggedIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
-        if (!isNaN(draggedIdx) && draggedIdx !== index) {
-            const newPages = [...orderedPages];
-            const item = newPages.splice(draggedIdx, 1)[0];
-            newPages.splice(index, 0, item);
-            setOrderedPages(newPages);
-            setSortMethod('custom');
-        }
     };
 
     const togglePageSelection = (e, index) => {
@@ -394,7 +577,6 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
         setOrderedPages(newPages);
         setSortMethod('custom');
     };
-
     const toggleSelectAll = () => {
         if (selectedPages.size === orderedPages.length) {
             setSelectedPages(new Set());
@@ -403,12 +585,18 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
         }
     };
 
+    const handleSaveManual = (newPages, newChapters) => {
+        setOrderedPages(newPages);
+        setChapters(newChapters);
+        setIsManualSorting(false);
+    };
+
     return (
         <>
             <div className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4 animate-fade backdrop-blur-md">
                 <form onSubmit={handleAdd} className="bg-slate-900/95 w-full max-w-2xl rounded-[32px] p-6 sm:p-8 border border-theme-600/40 shadow-[0_0_50px_rgba(var(--theme-rgb),0.3)] flex flex-col max-h-[90vh] relative overflow-hidden animate-in">
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-theme-600/20 blur-[60px] rounded-full pointer-events-none"></div>
-                    <h2 className="text-theme-400 font-black mb-6 uppercase text-center tracking-widest text-base sm:text-lg flex-none relative z-10" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>Nouveau Chapitre</h2>
+                    <h2 className="text-theme-400 font-black mb-6 uppercase text-center tracking-widest text-base sm:text-lg flex-none relative z-10" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>Nouveau Manga</h2>
                     
                     <div className="overflow-y-auto flex-1 pr-2 pb-2 relative z-10 custom-scrollbar">
                         <div className="mb-6 bg-black border border-theme-500/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-[inset_0_0_20px_rgba(var(--theme-rgb),0.1)]">
@@ -417,7 +605,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                         </div>
                         
                         <div className="grid grid-cols-1 gap-4 mb-4">
-                            <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Titre du chapitre" required className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] placeholder-theme-800 transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]" />
+                            <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Titre du manga" required className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] placeholder-theme-800 transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]" />
                             <ArtistInput existingArtists={existingArtists} value={formArtist} onChange={setFormArtist} name="artist" inputClass="rounded-xl px-4 py-4 text-sm placeholder-theme-800" />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <GroupInput existingGroups={existingGroups} value={formGroup} onChange={setFormGroup} name="group" inputClass="rounded-xl px-4 py-4 text-sm" />
@@ -426,28 +614,20 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                         </div>
                         
                         <div className="mb-6">
-                            <select value={formMangaDir} onChange={e => setFormMangaDir(e.target.value)} className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-xs text-theme-300 font-black uppercase tracking-widest outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all appearance-none text-center [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]">
+                            <select value={formMangaDir} onChange={e => setFormMangaDir(e.target.value)} className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-xs text-theme-300 font-black uppercase tracking-widest outline-none focus:border-theme-400 transition-all appearance-none text-center">
                                 <option value="rtl">Lecture Manga (Droite à Gauche)</option>
                                 <option value="ltr">Lecture BD (Gauche à Droite)</option>
                             </select>
                         </div>
 
-                        {/* Jaquette Complète (Wraparound) */}
-                        <div className="mb-4">
+                        <div className="grid grid-cols-1 gap-4 mb-4">
                             <CoverPicker
-                                preview={coverDoublePreview} label="Jaquette Complète (Wraparound)"
-                                sublabel="Optionnel - Pour l'effet 3D Parfait" height="h-32"
+                                preview={coverDoublePreview} label="Jaquette Complète"
+                                sublabel="Optionnel - Pour l'effet 3D" height="h-32"
                                 onFile={f => { if (coverDoublePreview) URL.revokeObjectURL(coverDoublePreview); setCoverDoubleFile(f); setCoverDoublePreview(URL.createObjectURL(f)); }}
                             />
                         </div>
 
-                        <div className="flex items-center justify-center gap-4 mb-4 opacity-50">
-                            <div className="h-px flex-1 bg-theme-600/50"></div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-theme-400">OU (Couvertures Simples)</span>
-                            <div className="h-px flex-1 bg-theme-600/50"></div>
-                        </div>
-                        
-                        {/* Couvertures Simples Début / Fin */}
                         <div className="grid grid-cols-2 gap-4 mb-6">
                             <CoverPicker
                                 preview={coverStartPreview} label="Cover Début" sublabel="Requis" isRequired={true}
@@ -469,8 +649,8 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                                 ) : (
                                     <span className="text-theme-400 font-black text-[10px] bg-theme-900/40 border border-theme-500/30 px-3 py-1.5 rounded-lg group-hover:bg-theme-600/30 group-hover:border-theme-400 transition-all">+ SÉLECTIONNER</span>
                                 )}
+                                {orderedPages.length > 0 && (<button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsManualSorting(true); }} className="absolute top-3 right-3 p-2 bg-theme-600/40 text-theme-100 hover:text-white rounded-xl border border-theme-400 hover:bg-theme-500 transition-all z-20 shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)]" title="Ordre & Chapitres"><IconSettings width="20" height="20" /></button>)}
                             </label>
-                            {orderedPages.length > 0 && (<button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsManualSorting(true); }} className="absolute top-3 right-3 p-2 bg-theme-600/40 text-theme-100 hover:text-white rounded-xl border border-theme-400 hover:bg-theme-500 transition-all z-20 shadow-[0_0_15px_rgba(var(--theme-rgb),0.6)] active:scale-95" title="Modifier l'ordre"><IconSettings width="20" height="20" /></button>)}
                         </div>
                     </div>
                     
@@ -481,48 +661,12 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                 </form>
             </div>
             {isManualSorting && (
-                <div className="fixed inset-0 z-[400] bg-black/95 p-4 sm:p-8 lg:p-12 flex flex-col animate-fade backdrop-blur-md">
-                    <div className="flex justify-between items-center mb-8 border-b border-theme-600/30 pb-6 flex-none animate-in w-full mx-auto md:px-8">
-                        <div><h3 className="text-lg sm:text-2xl font-black uppercase text-theme-400 tracking-widest" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>Ordre manuel</h3><p className="text-xs text-theme-300/60 uppercase mt-2 font-bold">Maintenez appuyé pour glisser-déposer</p></div>
-                        <button type="button" onClick={() => { setIsManualSorting(false); setSelectedPages(new Set()); }} className="bg-theme-600 text-white border border-theme-400 px-6 py-3 sm:px-8 sm:py-4 rounded-2xl text-xs font-black uppercase transition-all shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] hover:scale-105 active:scale-95">TERMINER</button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-20 animate-in w-full mx-auto md:px-8">
-                        <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 sm:gap-6 lg:gap-8">
-                            {orderedPages.map((f, i) => {
-                                const isSelected = selectedPages.has(i);
-                                return (
-                                <div key={f.name} draggable onDragStart={(e) => handleDragStart(e, i)} onDragOver={(e) => handleDragOver(e, i)} onDrop={(e) => handleDrop(e, i)}
-                                    className={`relative aspect-[3/4.5] bg-black rounded-xl sm:rounded-2xl overflow-hidden border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.5)] hover:border-theme-400 transition-all cursor-move group select-none touch-none ${isSelected ? 'ring-2 ring-red-500 opacity-80 scale-[0.98]' : ''}`}
-                                    style={{ WebkitTouchCallout: 'none' }}
-                                >
-                                    <div className="absolute inset-0 pointer-events-none"><StackThumbnail file={f} /></div>
-                                    <div className="absolute top-1.5 left-1.5 bg-black/80 backdrop-blur-md text-theme-400 font-black text-[10px] sm:text-xs min-w-[24px] h-[24px] flex items-center justify-center rounded-lg border border-theme-500/50 shadow-[0_0_10px_rgba(var(--theme-rgb),0.4)] z-10 pointer-events-none">{i + 1}</div>
-                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent p-3 pt-8 pointer-events-none z-10"><p className="text-[9px] sm:text-[10px] text-theme-100 font-bold truncate text-center drop-shadow-[0_0_5px_rgba(0,0,0,1)] opacity-70 group-hover:opacity-100">{f.name}</p></div>
-                                    
-                                    <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => togglePageSelection(e, i)} className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all z-20 pointer-events-auto shadow-[0_0_10px_rgba(0,0,0,0.5)] ${isSelected ? 'border-red-500 bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.8)]' : 'border-white/50 bg-black/50 text-transparent hover:border-red-400 hover:text-red-400'}`}>
-                                        {isSelected ? <IconCheck width="12" height="12" strokeWidth="3" /> : <IconTrash width="12" height="12" />}
-                                    </button>
-
-                                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-                                        <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => handleMoveStep(e, i, -1)} disabled={i === 0} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/80 text-white flex items-center justify-center border border-white/20 disabled:opacity-0 active:scale-95 shadow-[0_0_10px_rgba(0,0,0,0.5)] pointer-events-auto"><IconChevronLeft width="16" height="16" /></button>
-                                        <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => handleMoveStep(e, i, 1)} disabled={i === orderedPages.length - 1} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/80 text-white flex items-center justify-center border border-white/20 disabled:opacity-0 active:scale-95 shadow-[0_0_10px_rgba(0,0,0,0.5)] pointer-events-auto"><IconChevronRight width="16" height="16" /></button>
-                                    </div>
-                                </div>
-                            )})}
-                        </div>
-                    </div>
-                    {selectedPages.size > 0 && (
-                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl border border-red-500/50 shadow-[0_20px_50px_rgba(220,38,38,0.5)] px-6 py-4 rounded-2xl flex items-center gap-6 z-[500] animate-slide-up">
-                            <span className="font-black text-white text-sm whitespace-nowrap drop-shadow-[0_0_8px_rgba(220,38,38,0.8)]">{selectedPages.size} sélectionnée(s)</span>
-                            <div className="flex items-center gap-3">
-                                <button onClick={deleteSelectedPages} className="p-2.5 bg-red-600 text-white rounded-xl hover:scale-105 hover:shadow-[0_0_15px_rgba(220,38,38,0.6)] transition" title="Supprimer les pages sélectionnées"><IconTrash width="20" height="20" /></button>
-                                <button onClick={toggleSelectAll} className="px-4 py-2.5 bg-theme-600 text-white hover:bg-theme-500 transition font-black text-xs uppercase tracking-widest rounded-xl border border-theme-400 active:scale-95 shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)]">{selectedPages.size === orderedPages.length ? 'Tout désélectionner' : 'Tout sélectionner'}</button>
-                                <div className="w-px h-8 bg-theme-800/80 mx-1"></div>
-                                <button onClick={() => setSelectedPages(new Set())} className="px-4 py-2.5 text-theme-400 hover:text-theme-200 transition font-black text-xs uppercase tracking-widest bg-theme-950/50 rounded-xl border border-theme-800/50 active:scale-95">Annuler</button>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <ManualPageManageModal 
+                    pages={orderedPages} 
+                    chapters={chapters} 
+                    onSave={handleSaveManual} 
+                    onCancel={() => setIsManualSorting(false)} 
+                />
             )}
         </>
     );
