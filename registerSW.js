@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/mangahub-pro/sw.js', { scope: '/mangahub-pro/' })})}
