@@ -4,30 +4,24 @@ import {
     IconBookmarkFilled, IconBookmarkOutline, IconMoon, IconSun, IconMinimize
 } from './Icons';
 import { getCachedUrl, triggerHaptic } from '../utils';
+import StackThumbnail from './StackThumbnail';
 
 // Sous-composant pour afficher une image du lecteur
 const ReaderImage = memo(React.forwardRef(({ file, className = "", style = {}, isBackground = false, ...props }, ref) => {
+    if (isBackground) return null;
     const url = getCachedUrl(file);
     if (!url) return null;
-    if (isBackground) return null;
     return <img ref={ref} src={url} decoding="async" className={`reader-img gpu-accelerated ${className}`} style={style} {...props} />;
 }));
 ReaderImage.displayName = 'ReaderImage';
-
-// Sous-composant pour les miniatures de la barre de progression
-const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
-    const url = getCachedUrl(file);
-    return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : null;
-});
 
 // Sous-composant pour afficher une page ou une double-page (avec animations 3D)
 const SpreadDisplay = memo(({ spread, manga, isAnimating = false, slideDir = "next", isLandscape = true, hideAmbilight = false, singleRef, leftRef, rightRef }) => {
     if (!spread) return null;
     const isRTL = manga?.direction === 'rtl'; let animLeftClass = ""; let animRightClass = "";
-
     if (isAnimating) {
-        if (isRTL) { if (slideDir === 'next') animRightClass = 'animate-repli-right'; if (slideDir === 'prev') animLeftClass = 'animate-repli-left'; }
-        else { if (slideDir === 'next') animLeftClass = 'animate-repli-left'; if (slideDir === 'prev') animRightClass = 'animate-repli-right'; }
+        if (isRTL) { if (slideDir === 'next') animRightClass = 'animate-curl-right'; if (slideDir === 'prev') animLeftClass = 'animate-curl-left'; }
+        else { if (slideDir === 'next') animLeftClass = 'animate-curl-left'; if (slideDir === 'prev') animRightClass = 'animate-curl-right'; }
     }
 
     if (spread.center) {
@@ -119,8 +113,12 @@ const ReaderView = memo(({
 
     const applyPhysicalStyles = React.useCallback((p, dir, isSnapping = false) => {
         const isRTL = currentManga?.direction === 'rtl';
-        const trans = isSnapping ? 'transform 0.4s cubic-bezier(0.15, 0.9, 0.3, 1), filter 0.4s' : 'none';
+        const trans = isSnapping ? 'transform var(--page-snap-duration, 0.4s) cubic-bezier(0.15, 0.9, 0.3, 1), filter var(--page-snap-duration, 0.4s)' : 'none';
         const filterStyle = `brightness(${1 - Math.sin(p * Math.PI) * 0.4})`;
+
+        // Ajout de l'effet de courbure. La page se tord jusqu'à 10 degrés au milieu de l'animation.
+        const skewProgress = Math.sin(p * Math.PI) * 10;
+        const skewY = (dir === 'next' && !isRTL) || (dir === 'prev' && isRTL) ? -skewProgress : skewProgress;
 
         let sAngle = 0, sOrigin = 'center', side = null;
         if (isRTL) {
@@ -133,7 +131,8 @@ const ReaderView = memo(({
 
         const mkFace = (el, angle, origin) => {
             if (!el) return;
-            el.style.transform = `perspective(2000px) rotateY(${angle}deg)`;
+            // On combine la rotation 3D avec la nouvelle torsion (skewY)
+            el.style.transform = `perspective(2000px) rotateY(${angle}deg) skewY(${skewY}deg)`;
             el.style.transformOrigin = origin;
             el.style.transition = trans;
             el.style.filter = filterStyle;
@@ -267,8 +266,7 @@ const ReaderView = memo(({
     return (
         <div
             id="reader-main"
-            className={`reader-viewport overflow-hidden gpu-accelerated animate-reader-enter transition-[transform,opacity,inset] duration-[400ms] ${isNightMode ? 'night-mode-active' : ''} ${isExitingReader ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'} ${isFullscreen ? 'fixed inset-0 z-[2000]' : ''}`}
-            style={isFullscreen ? { height: '100dvh', width: '100vw' } : {}}
+            className={`reader-viewport overflow-hidden gpu-accelerated animate-reader-enter transition-[transform,opacity,inset] duration-[400ms] ${isNightMode ? 'night-mode-active' : ''} ${isExitingReader ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}
         >
             <div className={`reader-ui-top ${zenMode ? 'opacity-0 pointer-events-none -translate-y-full' : 'opacity-100 translate-y-0'} flex items-center justify-between w-full px-4 md:px-8 mx-auto`}>
                 <button onClick={handleCloseReader} className="bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl text-theme-400 active:scale-95 transition flex items-center justify-center border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] hover:text-theme-300 hover:bg-theme-900/30"><IconChevronLeft width="24" height="24" /></button>
@@ -306,9 +304,9 @@ const ReaderView = memo(({
                         </button>
                     )}
 
-                    <button 
-                        onClick={() => { toggleFullscreen(); }} 
-                        className="flex bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl active:scale-95 transition items-center justify-center border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] text-theme-400 hover:text-theme-300 hover:bg-theme-900/30" 
+                    <button
+                        onClick={() => { toggleFullscreen(); }}
+                        className="flex bg-black/80 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl active:scale-95 transition items-center justify-center border border-theme-600/40 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] text-theme-400 hover:text-theme-300 hover:bg-theme-900/30"
                         title={isFullscreen ? "Quitter le plein écran (F)" : "Plein Écran (F)"}
                     >
                         {isFullscreen ? <IconMinimize width="24" height="24" /> : <IconMaximize width="24" height="24" />}
@@ -327,7 +325,7 @@ const ReaderView = memo(({
             {edgeGlow === 'left' && <div className="absolute top-0 bottom-0 w-32 z-[140] pointer-events-none animate-edge-glow-left"></div>}
             {edgeGlow === 'right' && <div className="absolute top-0 bottom-0 w-32 z-[140] pointer-events-none animate-edge-glow-right"></div>}
 
-            <div className="w-full h-full flex justify-center items-center overflow-hidden relative" style={{ touchAction: 'none' }}
+            <div id="tutorial-reader-nav" className="w-full h-full flex justify-center items-center overflow-hidden relative" style={{ touchAction: 'none' }}
                 onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}
                 onWheel={handleWheel}
             >

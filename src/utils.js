@@ -1,12 +1,14 @@
+import QuickLRU from '@alloc/quick-lru';
+
 export const MANGA_PROPS = { faceW: 215, h: 320, spineW: 24 };
 
 export const DB_NAME = "MangaHub_V12";
 export const STORE_MANGAS = "mangas";
 export const STORE_PAGES = "pages";
 
-export const getSafeStorage = (k, d) => { try { return localStorage.getItem(k) || d; } catch(e) { return d; } };
-export const setSafeStorage = (k, v) => { try { localStorage.setItem(k, v); } catch(e) {} };
-export const triggerHaptic = (p = 50) => { if (navigator.vibrate) try { navigator.vibrate(p); } catch(e) {} };
+export const getSafeStorage = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
+export const setSafeStorage = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
+export const triggerHaptic = (p = 50) => { if (navigator.vibrate) try { navigator.vibrate(p); } catch (e) { } };
 
 let dbInstance = null;
 export const initDB = () => new Promise((res) => {
@@ -14,8 +16,8 @@ export const initDB = () => new Promise((res) => {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = e => {
         const db = e.target.result;
-        if (!db.objectStoreNames.contains(STORE_MANGAS)) db.createObjectStore(STORE_MANGAS, {keyPath: "id"});
-        if (!db.objectStoreNames.contains(STORE_PAGES)) db.createObjectStore(STORE_PAGES, {keyPath: "id"});
+        if (!db.objectStoreNames.contains(STORE_MANGAS)) db.createObjectStore(STORE_MANGAS, { keyPath: "id" });
+        if (!db.objectStoreNames.contains(STORE_PAGES)) db.createObjectStore(STORE_PAGES, { keyPath: "id" });
     };
     req.onsuccess = e => { dbInstance = e.target.result; res(dbInstance); };
 });
@@ -40,7 +42,7 @@ export const decodeFileToIDB = async (f) => {
         const buf = await res.arrayBuffer();
         f.data = null;
         return { _isArrayBuffer: true, buffer: buf, type: f.type, name: f.name };
-    } catch(e) {
+    } catch (e) {
         const bin = atob(f.data);
         const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
         f.data = null;
@@ -54,7 +56,7 @@ export const serializeFile = async (f) => {
         try {
             const buffer = await getArrayBuffer(f);
             return { _isArrayBuffer: true, buffer, type: f.type, name: f.name };
-        } catch(e) {
+        } catch (e) {
             console.error("Erreur sérialisation", e);
             return null;
         }
@@ -69,12 +71,12 @@ export const deserializeFile = (f) => {
             const blob = new Blob([f.buffer], { type: f.type || 'image/jpeg' });
             blob.name = f.name;
             return blob;
-        } catch(e) {
+        } catch (e) {
             console.error("Erreur désérialisation", e);
             return null;
         }
     }
-    return f; 
+    return f;
 };
 
 export const EXT_MIME = { png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
@@ -116,12 +118,12 @@ export const createImageUrl = (file) => {
     return URL.createObjectURL(b);
 };
 
-export const globalImageCache = new Map();
-
-export const clearImageCache = () => {
-    globalImageCache.forEach(url => URL.revokeObjectURL(url));
-    globalImageCache.clear();
-};
+export const globalImageCache = new QuickLRU({
+    maxSize: 250, // Conserve les 250 dernières images utilisées en mémoire
+    onEviction: (key, value) => {
+        URL.revokeObjectURL(value); // Libère la mémoire quand une image est retirée du cache
+    }
+});
 
 export const getFileKey = (file) => {
     if (!file) return null;
@@ -135,11 +137,15 @@ export const getCachedUrl = (file) => {
     if (!file) return null;
     const key = getFileKey(file);
     if (!key) return null;
-    if (globalImageCache.has(key)) return globalImageCache.get(key);
+
+    if (globalImageCache.has(key)) {
+        return globalImageCache.get(key); // .get() marque aussi l'élément comme récemment utilisé
+    }
+
     const blob = deserializeFile(file);
     if (!blob) return null;
     const url = createImageUrl(blob);
-    if (url) globalImageCache.set(key, url);
+    if (url) globalImageCache.set(key, url); // .set() ajoute le nouvel élément
     return url;
 };
 

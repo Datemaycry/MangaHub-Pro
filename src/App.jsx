@@ -6,19 +6,29 @@ import {
     IconFilter, IconReverse
 } from './components/Icons';
 import {
-    MANGA_PROPS, DB_NAME, STORE_MANGAS, STORE_PAGES,
-    getSafeStorage, setSafeStorage, triggerHaptic, initDB,
-    blobToBase64Async, decodeFileToIDB, serializeFile, deserializeFile,
-    getCachedUrl, SHELF_THEMES, SHELF_ENGRAVINGS, EXT_MIME, globalImageCache, getFileKey
+    STORE_MANGAS, STORE_PAGES,
+    triggerHaptic, initDB,
+    blobToBase64Async, decodeFileToIDB, deserializeFile,
+    getCachedUrl, globalImageCache, getFileKey
 } from './utils';
 import HubView from './components/HubView';
-import ReaderView from './components/ReaderView';
-import MangaInspector from './components/MangaInspector';
-import { EditMangaModal, BatchEditModal, AddChapterModal } from './components/Forms';
-import { ToastNotification, LoadingOverlay, ConfirmModal, MangaActionsModal } from './components/Modals';
-import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
+import { ToastNotification, LoadingOverlay, ConfirmModal } from './components/Modals';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
 import JSZip from 'jszip';
 import { polyfill } from 'mobile-drag-drop';
+import { useToast } from './hooks/useToast';
+import { useSettings } from './hooks/useSettings';
+import { useFullscreen } from './hooks/useFullscreen';
+import { useTutorial } from './hooks/useTutorial';
+
+// --- Lazy Loading des composants lourds ou non-critiques ---
+const ReaderView = lazy(() => import('./components/ReaderView'));
+const MangaInspector = lazy(() => import('./components/MangaInspector'));
+const AddChapterModal = lazy(() => import('./components/Forms').then(module => ({ default: module.AddChapterModal })));
+const EditMangaModal = lazy(() => import('./components/Forms').then(module => ({ default: module.EditMangaModal })));
+const BatchEditModal = lazy(() => import('./components/Forms').then(module => ({ default: module.BatchEditModal })));
+const MangaActionsModal = lazy(() => import('./components/Modals').then(module => ({ default: module.MangaActionsModal })));
+const TutorialManager = lazy(() => import('./components/Tutorial').then(module => ({ default: module.TutorialManager })));
 
 window.addEventListener('touchmove', function (e) {
     if (window.visualViewport && window.visualViewport.scale > 1.05) return;
@@ -43,62 +53,25 @@ window.addEventListener('touchmove', function (e) {
 
 polyfill({ holdToDrag: 250 });
 
-const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
-    const [url, setUrl] = useState(() => {
-        if (!file) return null;
-        const key = getFileKey(file);
-        return key && globalImageCache.has(key) ? globalImageCache.get(key) : null;
-    });
-
-    useEffect(() => {
-        if (!url && file) {
-            const timer = setTimeout(() => setUrl(getCachedUrl(file)), 0);
-            return () => clearTimeout(timer);
-        }
-    }, [file, url]);
-
-    return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : <div className="w-full h-full bg-theme-800/20 animate-pulse"></div>;
-});
+import StackThumbnail from './components/StackThumbnail';
 
 // --- APPLICATION ROOT ---
 const App = () => {
-    const [toast, setToast] = useState(null);
-    const showToast = useCallback((msg, type = 'info') => {
-        setToast({ msg, type, id: Date.now() });
-    }, []);
-    useEffect(() => { if (toast) { const timer = setTimeout(() => setToast(null), 3500); return () => clearTimeout(timer); } }, [toast]);
+    const { toast, showToast } = useToast();
 
-    const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
-    const [displayMode, setDisplayMode] = useState(() => getSafeStorage('mangaHubDisplayMode', 'auto'));
-    const effectiveLandscape = displayMode === 'auto' ? isLandscape : displayMode === 'double';
+    const {
+        isLandscape, effectiveLandscape, toggleDisplayMode,
+        appTheme, setAppTheme,
+        isNightMode, setIsNightMode,
+        showSpine, setShowSpine,
+        shelfTheme, setShelfTheme,
+        shelfEngraving, setShelfEngraving,
+        pageAnimationsEnabled, setPageAnimationsEnabled,
+        soundVolume, setSoundVolume,
+        animationSpeed, setAnimationSpeed,
+    } = useSettings();
 
-    const toggleDisplayMode = useCallback((e) => {
-        if (e) e.stopPropagation();
-        setDisplayMode(prev => {
-            const currentlyLandscape = prev === 'auto' ? isLandscape : prev === 'double';
-            const next = currentlyLandscape ? 'single' : 'double';
-            setSafeStorage('mangaHubDisplayMode', next);
-            return next;
-        });
-    }, [isLandscape]);
-
-    const [appTheme, setAppTheme] = useState(() => getSafeStorage('mangaHubTheme', 'blue'));
-    const [isNightMode, setIsNightMode] = useState(() => getSafeStorage('mangaHubNightMode', 'false') === 'true');
-    const [showSpine, setShowSpine] = useState(() => getSafeStorage('mangaHubShowSpine', 'true') === 'true');
-    useEffect(() => { setSafeStorage('mangaHubShowSpine', showSpine.toString()); }, [showSpine]);
-    const [shelfTheme, setShelfTheme] = useState(() => getSafeStorage('mangaHubShelfTheme', 'mahogany'));
-    const [shelfEngraving, setShelfEngraving] = useState(() => getSafeStorage('mangaHubShelfEngraving', 'none'));
-
-    useEffect(() => { document.body.setAttribute('data-theme', appTheme); setSafeStorage('mangaHubTheme', appTheme); }, [appTheme]);
-    useEffect(() => { setSafeStorage('mangaHubNightMode', isNightMode.toString()); }, [isNightMode]);
-    useEffect(() => { setSafeStorage('mangaHubShelfTheme', shelfTheme); }, [shelfTheme]);
-    useEffect(() => { setSafeStorage('mangaHubShelfEngraving', shelfEngraving); }, [shelfEngraving]);
-
-    useEffect(() => {
-        const handleResize = () => setIsLandscape(window.innerWidth > window.innerHeight);
-        window.addEventListener('resize', handleResize); window.addEventListener('orientationchange', handleResize);
-        return () => { window.removeEventListener('resize', handleResize); window.removeEventListener('orientationchange', handleResize); };
-    }, []);
+    const { isTutorialActive, currentStep, nextStep, endTutorial, setCurrentStep } = useTutorial();
 
     const [view, setView] = useState('hub');
     const [mangas, setMangas] = useState([]);
@@ -114,7 +87,6 @@ const App = () => {
     const [inspectingManga, setInspectingManga] = useState(null);
 
     // 👉 On ajoute l'état pour sauvegarder les coordonnées du clic
-    const [inspectingCoords, setInspectingCoords] = useState(null);
     const [lastOpenRect, setLastOpenRect] = useState(null);
 
     const [isAdding, setIsAdding] = useState(false);
@@ -147,8 +119,27 @@ const App = () => {
     const [isClosingReaderWithAnim, setIsClosingReaderWithAnim] = useState(false);
     const appRef = useRef(null);
     const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
+    const [soundLoaded, setSoundLoaded] = useState(false);
     const [deletingMangas, setDeletingMangas] = useState(new Set());
     const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+
+    const pageTurnSound = useMemo(() => {
+        const audio = new Audio('/mangahub-pro/page-turn.mp3');
+        audio.oncanplaythrough = () => {
+            setSoundLoaded(true);
+        };
+        audio.onerror = () => {
+            setSoundLoaded(false);
+            console.warn("Attention : Le fichier son 'page-turn.mp3' n'a pas pu être chargé. Assurez-vous qu'il se trouve dans le dossier /public.");
+        };
+        return audio;
+    }, []);
+
+    useEffect(() => {
+        if (pageTurnSound) {
+            pageTurnSound.volume = soundVolume;
+        }
+    }, [soundVolume, pageTurnSound]);
 
     const { existingGroups, existingTags, existingArtists } = useMemo(() => {
         const g = new Set(), t = new Set(), a = new Set();
@@ -165,20 +156,34 @@ const App = () => {
         };
     }, [mangas]);
 
+    const { isFullscreen, toggleFullscreen } = useFullscreen(setZenMode);
+
+    // --- Tutorial Logic ---
+    useEffect(() => {
+        // Start tutorial if it's not completed and the library is empty
+        if (isTutorialActive && mangas.length === 0 && currentStep === 0) {
+            setCurrentStep(1);
+        }
+    }, [isTutorialActive, mangas, currentStep, setCurrentStep]);
+
     const loadMangas = useCallback(async () => {
         const db = await initDB();
         db.transaction(STORE_MANGAS).objectStore(STORE_MANGAS).getAll().onsuccess = e => {
-            setMangas(e.target.result || []);
+            const loadedMangas = e.target.result || [];
+            setMangas(loadedMangas);
+            if (loadedMangas.length > 0 && isTutorialActive) {
+                endTutorial(); // End tutorial if user already has mangas
+            }
         };
-    }, []);
+    }, [isTutorialActive, endTutorial]);
     useEffect(() => { loadMangas(); }, []);
 
     useEffect(() => {
         if (view === 'reader' && currentManga) {
             // NETTOYAGE IMMÉDIAT : On vide les pages dès que le manga change
             // pour éviter d'afficher brièvement les pages du manga précédent.
-            setCurrentPages([]); 
-            
+            setCurrentPages([]);
+
             initDB().then(db => {
                 db.transaction(STORE_PAGES).objectStore(STORE_PAGES).get(currentManga.id).onsuccess = e => {
                     if (e.target.result) {
@@ -248,7 +253,7 @@ const App = () => {
 
     const nextChapter = useMemo(() => {
         if (!currentManga || !currentManga.group) return null; // FIX: Les mangas sans groupe ne s'enchaînent plus
-        
+
         const ctx = mangas.filter(m => m.group === currentManga.group);
         ctx.sort((a, b) => {
             const oA = a.order ?? 999999;
@@ -260,60 +265,26 @@ const App = () => {
         return i >= 0 && i < ctx.length - 1 ? ctx[i + 1] : null;
     }, [currentManga, mangas]);
 
+    // Précharge les images pour le lecteur afin d'améliorer la fluidité de la navigation.
+    // La logique de cache LRU dans `utils.js` gère automatiquement la mémoire.
     useEffect(() => {
-        const neededKeys = new Set();
+        if (view !== 'reader' || !allSpreads.length) return;
 
-        if (view === 'hub') {
-            mangas.forEach(m => {
-                if (m.coverDouble) neededKeys.add(getFileKey(m.coverDouble));
-                if (m.coverStart) neededKeys.add(getFileKey(m.coverStart));
-                if (m.coverEnd) neededKeys.add(getFileKey(m.coverEnd));
-                if (m.cover) neededKeys.add(getFileKey(m.cover));
-            });
-        }
-
-        if (view === 'reader' && allSpreads.length > 0) {
-            const addSpreadToNeeded = (index) => {
-                const spread = allSpreads[index];
-                if (spread) {
-                    if (spread.left) neededKeys.add(getFileKey(spread.left));
-                    if (spread.right) neededKeys.add(getFileKey(spread.right));
-                    if (spread.center) neededKeys.add(getFileKey(spread.center));
-                }
-            };
-
-            for (let i = cursor - 3; i <= cursor + 6; i++) addSpreadToNeeded(i);
-            if (prevCursor !== null) addSpreadToNeeded(prevCursor);
-        }
-
-        if (view === 'reader' && nextChapter) {
-            if (nextChapter.coverDouble) neededKeys.add(getFileKey(nextChapter.coverDouble));
-            if (nextChapter.coverStart) neededKeys.add(getFileKey(nextChapter.coverStart));
-            if (nextChapter.cover) neededKeys.add(getFileKey(nextChapter.cover));
-        }
-
-        for (const [key, url] of globalImageCache.entries()) {
-            if (!neededKeys.has(key)) {
-                URL.revokeObjectURL(url);
-                globalImageCache.delete(key);
+        const preloadFile = (file) => {
+            if (!file) return;
+            // getCachedUrl va soit récupérer l'URL du cache (et la marquer comme récemment utilisée),
+            // soit la créer et l'ajouter au cache.
+            const url = getCachedUrl(file);
+            if (url) {
+                // Créer un objet Image force le navigateur à télécharger l'image.
+                const img = new Image();
+                img.src = url;
             }
-        }
+        };
 
-        if (view === 'reader') {
-            const preloadFile = (file) => {
-                if (!file) return;
-                const key = getFileKey(file);
-                if (key && !globalImageCache.has(key)) {
-                    const url = getCachedUrl(file);
-                    if (url) {
-                        const img = new Image();
-                        img.decoding = "async";
-                        img.src = url;
-                    }
-                }
-            };
-
-            for (let i = cursor; i <= cursor + 6; i++) {
+        // Précharge les 3 prochaines doubles-pages.
+        for (let i = cursor + 1; i <= cursor + 3; i++) {
+            if (i < allSpreads.length) {
                 const spread = allSpreads[i];
                 if (spread) {
                     preloadFile(spread.left);
@@ -322,7 +293,7 @@ const App = () => {
                 }
             }
         }
-    }, [cursor, prevCursor, allSpreads, view, mangas]);
+    }, [view, cursor, allSpreads]);
 
     const toggleSelectAllMangas = useCallback((allFilteredIds) => {
         setSelectedMangas(prev => {
@@ -341,7 +312,7 @@ const App = () => {
         };
     }, []);
 
-    const handleOpenManga = useCallback((m, e, skipAnimation = false) => {
+    const handleOpenManga = useCallback((m, e, skipAnimation = false, startAtPageIndex = null) => {
         // Nettoyage pour éviter les sauts visuels
         if (currentManga?.id !== m.id) {
             setCurrentPages([]);
@@ -350,13 +321,18 @@ const App = () => {
 
         if (skipAnimation) {
             setCurrentManga(m);
-            setCursor(m.bookmark != null ? m.bookmark : 0);
+            if (startAtPageIndex !== null) {
+                setIsJumping(true);
+                setPendingPageIndex(startAtPageIndex);
+            } else {
+                setCursor(m.bookmark != null ? m.bookmark : 0);
+            }
             setView('reader');
             setZenMode(true);
             markAsRead(m);
-            setLastOpenRect(inspectingCoords);
             return;
         }
+
         let rect = { top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0 };
         if (e && e.currentTarget) {
             const coverNode = e.currentTarget.querySelector('.manga-cover-image');
@@ -366,31 +342,18 @@ const App = () => {
         } else {
             const fallback = document.getElementById('inspect-book-container');
             if (fallback) rect = fallback.getBoundingClientRect();
-            setLastOpenRect(inspectingCoords);
         }
         setAnimatingManga({ manga: m, rect, phase: 'start' });
-    }, [markAsRead, inspectingCoords]);
+    }, [markAsRead, currentManga?.id]);
 
     // 👉 La fonction modifiée pour capturer les coordonnées
     const handleInspectManga = useCallback((manga, e) => {
-        if (e && e.currentTarget) {
-            let rect = e.currentTarget.getBoundingClientRect();
-            const coverNode = e.currentTarget.querySelector('.manga-cover-image');
-            if (coverNode) {
-                rect = coverNode.getBoundingClientRect();
-            }
-            setInspectingCoords({
-                top: rect.top,
-                left: rect.left,
-                width: rect.width,
-                height: rect.height
-            });
-        } else {
-            setInspectingCoords(null);
+        if (isTutorialActive && currentStep === 3) {
+            nextStep();
         }
         setIsClosingReaderWithAnim(false); // SÉCURITÉ : On s'assure que le mode "fermeture auto" est éteint
         setInspectingManga(manga);
-    }, []);
+    }, [isTutorialActive, currentStep, nextStep]);
 
     useEffect(() => {
         if (animatingManga && animatingManga.phase === 'start') {
@@ -464,7 +427,6 @@ const App = () => {
             }
 
             setView('hub');
-            setInspectingCoords(rect);
             setInspectingManga(currentManga);
             setIsClosingReaderWithAnim(true);
             setCurrentManga(null);
@@ -729,22 +691,42 @@ const App = () => {
         };
     }, [currentManga, cursor, showToast]);
 
-    const executeUpdateManga = async (e, chapters) => {
+    const executeUpdateManga = async (e, chapters, modifiedPages) => {
         if (e && e.preventDefault) e.preventDefault();
-        const nt = e.target.title.value;
-        const ng = e.target.group.value.trim() || null;
-        const na = e.target.artist.value.trim() || null;
-        const nTags = e.target.tags.value.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
-        setLoading(true); const db = await initDB(); const tx = db.transaction(STORE_MANGAS, "readwrite");
-        tx.objectStore(STORE_MANGAS).get(editingManga.id).onsuccess = (ev) => {
+        const form = e.target;
+        const nt = form.title.value;
+        const ng = form.group.value.trim() || null;
+        const na = form.artist.value.trim() || null;
+        const nTags = form.tags.value.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+
+        setLoading(true);
+        const db = await initDB();
+        const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
+
+        if (modifiedPages) {
+            setImportProgress("Mise à jour des pages...");
+            // Optimisation et sérialisation en parallèle pour la performance
+            const pageProcessingPromises = modifiedPages.map(page =>
+                optimizeImage(page, 1600, 0.80).then(serializeFile)
+            );
+            const sOrderedPages = await Promise.all(pageProcessingPromises);
+            tx.objectStore(STORE_PAGES).put({ id: editingManga.id, pages: sOrderedPages });
+        }
+
+        const mangaStore = tx.objectStore(STORE_MANGAS);
+        mangaStore.get(editingManga.id).onsuccess = (ev) => {
             const item = ev.target.result;
             if (item) {
                 item.title = nt; item.group = ng; item.artist = na; item.tags = nTags;
                 item.chapters = chapters || [];
-                tx.objectStore(STORE_MANGAS).put(item);
+                if (modifiedPages) {
+                    item.totalPages = modifiedPages.length;
+                }
+                mangaStore.put(item);
             }
         };
-        tx.oncomplete = () => { setLoading(false); setEditingManga(null); setActiveCardMenu(null); loadMangas(); showToast("Manga mis à jour", "success"); };
+        tx.oncomplete = () => { setLoading(false); setImportProgress(null); setEditingManga(null); setActiveCardMenu(null); loadMangas(); showToast("Manga mis à jour", "success"); };
+        tx.onerror = () => { setLoading(false); setImportProgress(null); showToast("Erreur lors de la mise à jour.", "error"); };
     };
 
     const executePurge = async () => { setLoading(true); const db = await initDB(); const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite"); tx.objectStore(STORE_MANGAS).clear(); tx.objectStore(STORE_PAGES).clear(); tx.oncomplete = () => window.location.reload(); };
@@ -896,66 +878,32 @@ const App = () => {
         prevSpreadsRef.current = allSpreads;
     }, [effectiveLandscape, allSpreads, currentManga, cursor]);
 
+    // Refs pour stabiliser les callbacks qui lisent cursor/allSpreads à haute fréquence
+    const cursorRef = useRef(cursor);
+    cursorRef.current = cursor;
+    const allSpreadsRef = useRef(allSpreads);
+    allSpreadsRef.current = allSpreads;
+    const showNextChapterOverlayRef = useRef(showNextChapterOverlay);
+    showNextChapterOverlayRef.current = showNextChapterOverlay;
+
     const handleSetCursor = useCallback((newVal, fromTap = null) => {
-        if (newVal === cursor) return;
-        if (fromTap) { setEdgeGlow(fromTap); setTimeout(() => setEdgeGlow(null), 400); }
-        setPrevCursor(cursor); setSlideDir(newVal > cursor ? 'next' : 'prev'); setCursor(newVal); setShowNextChapterOverlay(false); setTimeout(() => setPrevCursor(null), 1000);
-    }, [cursor]);
+        const cur = cursorRef.current;
+        if (newVal === cur) return;
 
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    useEffect(() => {
-        const onFsChange = () => {
-            const isNativeFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-            
-            if (!isNativeFS) {
-                // Si on sort du plein écran natif (via ESC par ex), on coupe aussi notre état interne
-                // et on retire la classe pseudo-fs pour revenir à l'état normal.
-                setIsFullscreen(false);
-                document.documentElement.classList.remove('is-pseudo-fs');
-            } else {
-                setIsFullscreen(true);
-            }
-        };
-        document.addEventListener('fullscreenchange', onFsChange);
-        document.addEventListener('webkitfullscreenchange', onFsChange);
-        document.addEventListener('mozfullscreenchange', onFsChange);
-        document.addEventListener('MSFullscreenChange', onFsChange);
-        return () => {
-            document.removeEventListener('fullscreenchange', onFsChange);
-            document.removeEventListener('webkitfullscreenchange', onFsChange);
-            document.removeEventListener('mozfullscreenchange', onFsChange);
-            document.removeEventListener('MSFullscreenChange', onFsChange);
-        };
-    }, []);
-
-    const toggleFullscreen = useCallback(() => {
-        const doc = document;
-        const target = doc.documentElement; // Re-basculé sur documentElement pour couvrir toute l'app
-        
-        const isNativeFS = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
-
-        if (!isFullscreen) {
-            const req = target.requestFullscreen || target.webkitRequestFullscreen || target.mozRequestFullScreen || target.msRequestFullscreen;
-            setZenMode(true);
-            setIsFullscreen(true);
-            doc.documentElement.classList.add('is-pseudo-fs');
-            
-            if (req) {
-                 req.call(target).catch(err => {
-                     console.warn("Native FS Failed, using Pseudo FS:", err);
-                 });
-            }
-            triggerHaptic(30);
-        } else {
-            setIsFullscreen(false);
-            doc.documentElement.classList.remove('is-pseudo-fs');
-            if (isNativeFS) {
-                const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
-                if (exit) exit.call(doc).catch(() => {});
-            }
-            triggerHaptic(20);
+        if (isTutorialActive && currentStep === 5) {
+            nextStep();
         }
-    }, [isFullscreen, setZenMode]);
+
+        if (soundVolume > 0 && soundLoaded) {
+            pageTurnSound.currentTime = 0;
+            pageTurnSound.play().catch(e => {
+                // This catch is a fallback for playback interruptions, the main check is soundLoaded
+            });
+        }
+        if (fromTap) { setEdgeGlow(fromTap); setTimeout(() => setEdgeGlow(null), 400); }
+        setPrevCursor(cur); setSlideDir(newVal > cur ? 'next' : 'prev'); setCursor(newVal); setShowNextChapterOverlay(false); setTimeout(() => setPrevCursor(null), 1000);
+    }, [soundVolume, soundLoaded, pageTurnSound, isTutorialActive, currentStep, nextStep]);
+
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -963,53 +911,58 @@ const App = () => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
             // Raccourci Plein Écran Global
-            if (e.key === 'f' || e.key === 'F') { 
-                e.preventDefault(); 
-                toggleFullscreen(); 
-                return; 
+            if (e.key === 'f' || e.key === 'F') {
+                e.preventDefault();
+                toggleFullscreen();
+                return;
             }
 
             // Raccourcis spécifiques au lecteur
             if (view === 'reader') {
                 if (e.key === 'Escape') { handleCloseReader(); return; }
-                if (isAdding || showGlobalSettings || !allSpreads || activeCardMenu) return;
+                if (isAdding || showGlobalSettings || !allSpreadsRef.current || activeCardMenu) return;
 
+                const cursor = cursorRef.current;
+                const allSpreads = allSpreadsRef.current;
+                const showNextChapterOverlay = showNextChapterOverlayRef.current;
                 const isRTL = currentManga?.direction === 'rtl';
 
                 if (e.key === 'ArrowRight' || (e.key === ' ' && !e.shiftKey)) {
-                    if (e.key === ' ') e.preventDefault(); 
+                    if (e.key === ' ') e.preventDefault();
                     const goNext = isRTL && e.key !== ' ' ? false : true;
-                    if (goNext) { 
-                        if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, 'right'); 
-                        else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); } 
-                    } else { 
-                        if (showNextChapterOverlay) setShowNextChapterOverlay(false); 
-                        else if (cursor > 0) handleSetCursor(cursor - 1, 'right'); 
+                    if (goNext) {
+                        if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, 'right');
+                        else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); }
+                    } else {
+                        if (showNextChapterOverlay) setShowNextChapterOverlay(false);
+                        else if (cursor > 0) handleSetCursor(cursor - 1, 'right');
                     }
                 } else if (e.key === 'ArrowLeft' || e.key === 'Backspace' || (e.key === ' ' && e.shiftKey)) {
-                    if (e.key === ' ' || e.key === 'Backspace') e.preventDefault(); 
+                    if (e.key === ' ' || e.key === 'Backspace') e.preventDefault();
                     const goNext = isRTL && e.key === 'ArrowLeft' ? true : false;
-                    if (goNext) { 
-                        if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, 'left'); 
-                        else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); } 
-                    } else { 
-                        if (showNextChapterOverlay) setShowNextChapterOverlay(false); 
-                        else if (cursor > 0) handleSetCursor(cursor - 1, 'left'); 
+                    if (goNext) {
+                        if (cursor < allSpreads.length - 1) handleSetCursor(cursor + 1, 'left');
+                        else { setShowNextChapterOverlay(true); triggerHaptic([50, 100, 50]); }
+                    } else {
+                        if (showNextChapterOverlay) setShowNextChapterOverlay(false);
+                        else if (cursor > 0) handleSetCursor(cursor - 1, 'left');
                     }
-                } else if (e.key === 'ArrowUp') { 
-                    setZenMode(prev => !prev); 
+                } else if (e.key === 'ArrowUp') {
+                    setZenMode(prev => !prev);
                 }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [view, cursor, allSpreads, showNextChapterOverlay, isAdding, showGlobalSettings, currentManga, activeCardMenu, handleCloseReader, toggleFullscreen]);
+    }, [view, isAdding, showGlobalSettings, currentManga, activeCardMenu, handleCloseReader, toggleFullscreen, handleSetCursor]);
 
     const wheelTimeout = useRef(null);
     const handleWheel = useCallback((e) => {
-        if (view !== 'reader' || showNextChapterOverlay) return;
+        if (view !== 'reader' || showNextChapterOverlayRef.current) return;
         if (wheelTimeout.current) return;
 
+        const cursor = cursorRef.current;
+        const allSpreads = allSpreadsRef.current;
         const isRTL = currentManga?.direction === 'rtl';
         let goNext = false; let goPrev = false;
 
@@ -1026,7 +979,7 @@ const App = () => {
         if (goNext || goPrev) {
             wheelTimeout.current = setTimeout(() => { wheelTimeout.current = null; }, 600);
         }
-    }, [view, cursor, allSpreads, currentManga, showNextChapterOverlay]);
+    }, [view, currentManga, handleSetCursor]);
 
     const { inspectorPrev, inspectorNext } = useMemo(() => {
         if (!inspectingManga) return { inspectorPrev: null, inspectorNext: null };
@@ -1051,16 +1004,20 @@ const App = () => {
     const toggleSpineCb = useCallback(() => setShowSpine(p => !p), []);
     const handleInspectorClose = useCallback(() => setInspectingManga(null), []);
     const handleInspectorRead = useCallback((m, eOrPageIndex, skipAnim) => {
+        // Clic sur un chapitre : on saute l'animation et on va directement à la page
         if (typeof eOrPageIndex === 'number') {
-            setIsJumping(true);
-            setPendingPageIndex(eOrPageIndex);
-            handleOpenManga(m, null, false);
+            handleOpenManga(m, null, true, eOrPageIndex);
             setTimeout(() => setInspectingManga(null), 100);
         } else {
+            if (isTutorialActive && currentStep === 4) {
+                nextStep();
+            }
+            // Clic sur "Ouvrir" : on utilise l'animation du livre qui s'ouvre
             handleOpenManga(m, eOrPageIndex, skipAnim);
             setTimeout(() => setInspectingManga(null), skipAnim ? 0 : 100);
         }
-    }, [handleOpenManga]);
+    }, [handleOpenManga, isTutorialActive, currentStep, nextStep]);
+
     const handleInspectorOpenMenu = useCallback((m) => {
         setInspectingManga(null);
         setTimeout(() => setActiveCardMenu(m), 300);
@@ -1068,13 +1025,20 @@ const App = () => {
     const handleInspectorPrevAction = useCallback(() => { triggerHaptic(30); setInspectingManga(inspectorPrev); }, [inspectorPrev]);
     const handleInspectorNextAction = useCallback(() => { triggerHaptic(30); setInspectingManga(inspectorNext); }, [inspectorNext]);
 
+    const handleOpenAddModal = useCallback(() => {
+        if (isTutorialActive && currentStep === 1) {
+            nextStep();
+        }
+        setIsAdding(true);
+    }, [isTutorialActive, currentStep, nextStep]);
+
     return (
         <div ref={appRef} className="h-full w-full bg-black text-white flex flex-col items-center relative overflow-hidden">
             <div className="w-full h-full absolute inset-0" style={{ visibility: view === 'hub' ? 'visible' : 'hidden', opacity: view === 'hub' ? 1 : 0, pointerEvents: view === 'hub' ? 'auto' : 'none' }}>
                 <HubView
-                    isActive={view === 'hub'}
-                    mangas={mangas} animatingManga={animatingManga} deferredPrompt={deferredPrompt} handleInstallApp={handleInstallApp}
-                    setIsAdding={setIsAdding} showGlobalSettings={showGlobalSettings} shelfEngraving={shelfEngraving} setShelfEngraving={setShelfEngraving}
+                    isActive={view === 'hub'} soundVolume={soundVolume} setSoundVolume={setSoundVolume} isTutorialActive={isTutorialActive}
+                    mangas={mangas} animatingManga={animatingManga} deferredPrompt={deferredPrompt} handleInstallApp={handleInstallApp} animationSpeed={animationSpeed} setAnimationSpeed={setAnimationSpeed} pageAnimationsEnabled={pageAnimationsEnabled} setPageAnimationsEnabled={setPageAnimationsEnabled}
+                    setIsAdding={handleOpenAddModal} showGlobalSettings={showGlobalSettings} shelfEngraving={shelfEngraving} setShelfEngraving={setShelfEngraving}
                     setShowGlobalSettings={setShowGlobalSettings} appTheme={appTheme} setAppTheme={setAppTheme} shelfTheme={shelfTheme} setShelfTheme={setShelfTheme}
                     handleExport={handleExport} handleImport={handleImport} setPurgeConfirm={setPurgeConfirm} handleReorderManga={handleReorderManga}
                     handleOpenManga={handleOpenManga} setActiveCardMenu={setActiveCardMenu}
@@ -1082,40 +1046,45 @@ const App = () => {
                     toggleSelectAllMangas={toggleSelectAllMangas} toggleSelectionMode={toggleSelectionMode} setShowBatchEditModal={setShowBatchEditModal}
                     setBatchDeleteConfirm={setBatchDeleteConfirm} setInspectingManga={handleInspectManga} deletingMangas={deletingMangas}
                     inspectingMangaId={inspectingManga?.id}
+                    toggleFullscreen={toggleFullscreen} isFullscreen={isFullscreen}
                 />
             </div>
 
-            {view === 'reader' && (
-                <ReaderView
-                    isNightMode={isNightMode} setIsNightMode={setIsNightMode} isExitingReader={isExitingReader} zenMode={zenMode} setZenMode={setZenMode}
-                    handleCloseReader={handleCloseReader} toggleFullscreen={toggleFullscreen} isFullscreen={isFullscreen} toggleBookmark={toggleBookmark} currentManga={currentManga}
-                    cursor={cursor} handleSetCursor={handleSetCursor} edgeGlow={edgeGlow} currentPages={currentPages} allSpreads={allSpreads} isLandscape={effectiveLandscape}
-                    prevCursor={prevCursor} slideDir={slideDir} handleWheel={handleWheel}
-                    showNextChapterOverlay={showNextChapterOverlay} setShowNextChapterOverlay={setShowNextChapterOverlay} nextChapter={nextChapter} saveProgress={saveProgress}
-                    setCurrentManga={setCurrentManga} setCursor={setCursor} markAsRead={markAsRead} toggleDisplayMode={toggleDisplayMode}
-                    showSpine={showSpine} toggleSpine={toggleSpineCb} isJumping={isJumping}
-                />
-            )}
+            <Suspense fallback={<LoadingOverlay loading={true} importProgress="Chargement..." />}>
+                {view === 'reader' && (
+                    <ReaderView
+                        isNightMode={isNightMode} setIsNightMode={setIsNightMode} isExitingReader={isExitingReader} zenMode={zenMode} setZenMode={setZenMode}
+                        handleCloseReader={handleCloseReader} toggleFullscreen={toggleFullscreen} isFullscreen={isFullscreen} toggleBookmark={toggleBookmark} currentManga={currentManga}
+                        cursor={cursor} handleSetCursor={handleSetCursor} edgeGlow={edgeGlow} currentPages={currentPages} allSpreads={allSpreads} isLandscape={effectiveLandscape}
+                        prevCursor={prevCursor} slideDir={slideDir} handleWheel={handleWheel}
+                        showNextChapterOverlay={showNextChapterOverlay} setShowNextChapterOverlay={setShowNextChapterOverlay} nextChapter={nextChapter} saveProgress={saveProgress}
+                        setCurrentManga={setCurrentManga} setCursor={setCursor} markAsRead={markAsRead} toggleDisplayMode={toggleDisplayMode}
+                        showSpine={showSpine} toggleSpine={toggleSpineCb} isJumping={isJumping}
+                    />
+                )}
 
-            {inspectingManga && (
-                <MangaInspector
-                    manga={inspectingManga}
-                    inspectingCoords={inspectingCoords}
-                    onClose={handleInspectorClose}
-                    onRead={handleInspectorRead}
-                    isAnimatingOut={!!animatingManga}
-                    startClosing={isClosingReaderWithAnim}
-                    onOpenMenu={handleInspectorOpenMenu}
-                    hasPrev={!!inspectorPrev}
-                    hasNext={!!inspectorNext}
-                    onPrev={handleInspectorPrevAction}
-                    onNext={handleInspectorNextAction}
-                />
-            )}
+                {inspectingManga && (
+                    <MangaInspector
+                        manga={inspectingManga}
+                        onClose={handleInspectorClose}
+                        onRead={handleInspectorRead}
+                        isAnimatingOut={!!animatingManga}
+                        startClosing={isClosingReaderWithAnim}
+                        onOpenMenu={handleInspectorOpenMenu}
+                        hasPrev={!!inspectorPrev}
+                        hasNext={!!inspectorNext}
+                        onPrev={handleInspectorPrevAction}
+                        onNext={handleInspectorNextAction}
+                    />
+                )}
 
-            <MangaActionsModal activeCardMenu={activeCardMenu} onClose={() => setActiveCardMenu(null)} onEdit={(manga) => setEditingManga(manga)} onExport={handleExportArchive} onDelete={(id) => { setActiveCardMenu(null); setDeleteConfirm(id); }} />
-            <EditMangaModal editingManga={editingManga} onClose={() => setEditingManga(null)} onSubmit={executeUpdateManga} existingGroups={existingGroups} existingTags={existingTags} existingArtists={existingArtists} />
-            <BatchEditModal isOpen={showBatchEditModal} count={selectedMangas.size} onClose={() => setShowBatchEditModal(false)} onSubmit={executeBatchEdit} existingTags={existingTags} existingGroups={existingGroups} existingArtists={existingArtists} />
+                {activeCardMenu && <MangaActionsModal activeCardMenu={activeCardMenu} onClose={() => setActiveCardMenu(null)} onEdit={(manga) => setEditingManga(manga)} onExport={handleExportArchive} onDelete={(id) => { setActiveCardMenu(null); setDeleteConfirm(id); }} />}
+                {editingManga && <EditMangaModal editingManga={editingManga} onClose={() => setEditingManga(null)} onSubmit={executeUpdateManga} existingGroups={existingGroups} existingTags={existingTags} existingArtists={existingArtists} />}
+                {showBatchEditModal && <BatchEditModal isOpen={showBatchEditModal} count={selectedMangas.size} onClose={() => setShowBatchEditModal(false)} onSubmit={executeBatchEdit} existingTags={existingTags} existingGroups={existingGroups} existingArtists={existingArtists} />}
+                {isAdding && (<AddChapterModal onClose={() => setIsAdding(false)} onSuccess={() => { setIsAdding(false); loadMangas(); if (isTutorialActive && currentStep === 2) nextStep(); }} setLoading={setLoading} setImportProgress={setImportProgress} showToast={showToast} existingGroups={existingGroups} existingTags={existingTags} existingArtists={existingArtists} />)}
+                {isTutorialActive && <TutorialManager currentStep={currentStep} nextStep={nextStep} endTutorial={endTutorial} />}
+            </Suspense>
+
             <ConfirmModal
                 isOpen={deleteConfirm !== null || purgeConfirm || batchDeleteConfirm}
                 title={batchDeleteConfirm ? `Supprimer ${selectedMangas.size} mangas ?` : "Confirmer ?"}
@@ -1136,7 +1105,6 @@ const App = () => {
                     else { executePurge(); }
                 }}
             />
-            {isAdding && (<AddChapterModal onClose={() => setIsAdding(false)} onSuccess={() => { setIsAdding(false); loadMangas(); }} setLoading={setLoading} setImportProgress={setImportProgress} showToast={showToast} existingGroups={existingGroups} existingTags={existingTags} existingArtists={existingArtists} />)}
             <LoadingOverlay loading={loading} importProgress={importProgress} />
             <ToastNotification toast={toast} />
 

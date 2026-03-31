@@ -305,55 +305,77 @@ body,
 .animate-enter-next-rtl {
     animation: enterRepliRTL 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     transform-origin: left center;
+    will-change: transform, filter;
 }
 
 .animate-enter-prev-rtl {
     animation: enterRepliLTR 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     transform-origin: right center;
+    will-change: transform, filter;
 }
 
 .animate-enter-next-ltr {
     animation: enterRepliLTR 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     transform-origin: right center;
+    will-change: transform, filter;
 }
 
 .animate-enter-prev-ltr {
     animation: enterRepliRTL 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     transform-origin: left center;
+    will-change: transform, filter;
 }
 
-@keyframes flipRepliLeft {
-    from {
-        transform: perspective(2000px) rotateY(90deg);
+@keyframes page-curl-left {
+    0% {
+        transform: perspective(2000px) rotateY(90deg) skewY(0deg);
         filter: brightness(0.4);
     }
 
     to {
-        transform: perspective(2000px) rotateY(0deg);
+        transform: perspective(2000px) rotateY(0deg) skewY(0deg);
         filter: brightness(1);
     }
 }
 
-@keyframes flipRepliRight {
+@keyframes page-curl-right {
     from {
         transform: perspective(2000px) rotateY(-90deg);
         filter: brightness(0.4);
     }
 
     to {
-        transform: perspective(2000px) rotateY(0deg);
+        transform: perspective(2000px) rotateY(0deg) skewY(0deg);
         filter: brightness(1);
     }
 }
 
-.animate-repli-left {
+.animate-curl-left {
     transform-origin: right center;
-    animation: flipRepliLeft 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+
+    @keyframes page-curl-left {
+        0% {
+            /* état de départ */
+        }
+
+        50% {
+            /* état du milieu avec la torsion */
+        }
+
+        100% {
+            /* état final */
+        }
+    }
+
+    animation: page-curl-left var(--page-turn-duration, 0.6s) ease-in-out forwards;
+    will-change: transform,
+    filter;
 }
 
-.animate-repli-right {
+.animate-curl-right {
     transform-origin: left center;
-    animation: flipRepliRight 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: page-curl-right var(--page-turn-duration, 0.6s) ease-in-out forwards;
+    will-change: transform, filter;
 }
 
 @keyframes edgeGlow {
@@ -459,14 +481,17 @@ body,
 
 .aura-blob-1 {
     animation: auraBlob1 15s infinite alternate ease-in-out;
+    will-change: transform;
 }
 
 .aura-blob-2 {
     animation: auraBlob2 18s infinite alternate ease-in-out;
+    will-change: transform;
 }
 
 .aura-blob-3 {
     animation: auraBlob3 22s infinite alternate ease-in-out;
+    will-change: transform;
 }
 
 .ambilight-bg {
@@ -592,21 +617,25 @@ body,
 }
 
 /* --- SYSTÈME DE PLEIN ÉCRAN (NATIF & PSEUDO) --- */
+
+/* 1. Reset Global Plein Écran */
 :fullscreen,
+:-webkit-full-screen,
+:-moz-full-screen,
+:-ms-fullscreen,
 ::backdrop,
-.is-pseudo-fs #reader-main,
-.is-pseudo-fs #root,
-.is-pseudo-fs {
+.is-pseudo-fs,
+.is-native-fs {
     background-color: #000 !important;
 }
 
-/* 
-   Sélecteur universel pour le conteneur de l'application en plein écran.
-*/
-#reader-main:fullscreen,
-#root:fullscreen,
-.is-pseudo-fs #root,
-.is-pseudo-fs #reader-main {
+/* 2. Conteneur App en Plein Écran */
+:fullscreen #root,
+:-webkit-full-screen #root,
+:-moz-full-screen #root,
+:-ms-fullscreen #root,
+.is-native-fs #root,
+.is-pseudo-fs #root {
     position: fixed !important;
     inset: 0 !important;
     width: 100vw !important;
@@ -622,18 +651,34 @@ body,
     background: #000 !important;
 }
 
-/* Support des encoches (Notch) et indicateurs d'accueil sur mobile */
+/* 3. Masque les barres de défilement du document en plein écran */
+:fullscreen,
+:-webkit-full-screen,
+.is-pseudo-fs,
+.is-native-fs {
+    overflow: hidden !important;
+}
+
+:fullscreen::-webkit-scrollbar,
+:-webkit-full-screen::-webkit-scrollbar,
+.is-pseudo-fs::-webkit-scrollbar,
+.is-native-fs::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* 4. Support spécifique Safari / Chrome pour les encoches */
 @supports (padding: env(safe-area-inset-top)) {
-    .is-pseudo-fs #reader-main {
-        padding-top: env(safe-area-inset-top) !important;
-        padding-bottom: env(safe-area-inset-bottom) !important;
-        padding-left: env(safe-area-inset-left) !important;
-        padding-right: env(safe-area-inset-right) !important;
+
+    :fullscreen #root,
+    :-webkit-full-screen #root,
+    .is-native-fs #root,
+    .is-pseudo-fs #root {
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) !important;
     }
 }
 
 /* Masquer la barre de défilement du body en pseudo-fs */
-html.is-pseudo-fs, 
+html.is-pseudo-fs,
 body.is-pseudo-fs {
     overflow: hidden !important;
     height: 100dvh !important;
@@ -655,18 +700,26 @@ body.is-pseudo-fs {
     width: 100%;
     height: 2px;
     background-color: #fff;
-    box-shadow: 
+    box-shadow:
         0 0 10px 3px rgba(var(--theme-rgb), 0.9),
         0 0 20px 6px rgba(var(--theme-rgb), 0.5),
         0 0 35px 12px rgba(var(--theme-rgb), 0.3);
-    z-index: 25; /* Just above the board */
+    z-index: 25;
+    /* Just above the board */
     opacity: 0.8;
     pointer-events: none;
     animation: led-pulse 4s ease-in-out infinite alternate;
+    will-change: filter, opacity;
 }
 
 @keyframes led-pulse {
-    0% { opacity: 0.6; filter: brightness(0.9) saturate(1.2); }
-    100% { opacity: 1; filter: brightness(1.3) saturate(1.8); }
+    0% {
+        opacity: 0.6;
+        filter: brightness(0.9) saturate(1.2);
+    }
+
+    100% {
+        opacity: 1;
+        filter: brightness(1.3) saturate(1.8);
+    }
 }
-

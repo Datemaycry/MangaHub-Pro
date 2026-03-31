@@ -1,60 +1,43 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import JSZip from 'jszip';
-import { 
-    IconSettings, IconUpload, IconChevronLeft, IconChevronRight, 
-    IconTrash, IconCheck, IconFlag, IconAward 
+import {
+    IconSettings, IconUpload, IconChevronLeft, IconChevronRight,
+    IconTrash, IconCheck, IconFlag, IconAward
 } from './Icons';
-import { 
-    initDB, serializeFile, triggerHaptic, EXT_MIME, 
-    STORE_MANGAS, STORE_PAGES, getCachedUrl, optimizeImage, getFileKey, globalImageCache, deserializeFile
+import {
+    initDB, serializeFile, triggerHaptic, EXT_MIME,
+    STORE_MANGAS, STORE_PAGES, optimizeImage, deserializeFile
 } from '../utils';
+import StackThumbnail from './StackThumbnail';
 
-const StackThumbnail = memo(({ file, contain = false, className = "" }) => {
-    const [url, setUrl] = useState(() => {
-        if (!file) return null;
-        const key = getFileKey(file);
-        return key && globalImageCache.has(key) ? globalImageCache.get(key) : null;
-    });
-
-    useEffect(() => {
-        if (!url && file) {
-            const timer = setTimeout(() => setUrl(getCachedUrl(file)), 0);
-            return () => clearTimeout(timer);
-        }
-    }, [file, url]);
-
-    return url ? <img src={url} loading="lazy" decoding="async" className={`w-full h-full gpu-accelerated ${contain ? 'object-contain' : 'object-cover'} ${className}`} /> : <div className="w-full h-full bg-theme-800/20 animate-pulse"></div>;
-});
-
-export const GroupInput = memo(({ existingGroups = [], value, onChange, name, placeholder, inputClass = "rounded-xl px-4 py-4 text-sm" }) => {
+const SingleSelectChipInput = memo(({ existingItems = [], value, onChange, name, placeholder, inputClass = "rounded-xl px-4 py-4 text-sm" }) => {
     const [val, setVal] = useState(value || "");
 
     useEffect(() => {
         if (value !== undefined) setVal(value);
     }, [value]);
 
-    const handleChange = (newVal) => {
+    const handleChange = useCallback((newVal) => {
         if (onChange) onChange(newVal);
-        setVal(newVal);
-    };
+        else setVal(newVal);
+    }, [onChange]);
 
-    const toggleGroup = (group) => {
-        if (val === group) handleChange("");
-        else handleChange(group);
-    };
+    const toggleItem = useCallback((item) => {
+        handleChange(val === item ? "" : item);
+    }, [val, handleChange]);
 
     const baseClass = `w-full bg-black border border-theme-600/40 text-theme-300 font-bold text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] ${inputClass}`;
 
     return (
         <div className="w-full flex flex-col gap-2">
-            <input name={name} value={val} onChange={e => handleChange(e.target.value)} placeholder={placeholder || "Série / Pile (Optionnel)"} className={baseClass} />
-            {existingGroups.length > 0 && (
+            <input name={name} value={val} onChange={e => handleChange(e.target.value)} placeholder={placeholder} className={baseClass} />
+            {existingItems.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 justify-center mt-1 max-h-24 overflow-y-auto custom-scrollbar p-1">
-                    {existingGroups.map(g => {
-                        const isSelected = val === g;
+                    {existingItems.map(item => {
+                        const isSelected = val === item;
                         return (
-                            <button type="button" key={g} onClick={() => toggleGroup(g)} className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-colors border active:scale-95 ${isSelected ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/40'}`}>
-                                {g}
+                            <button type="button" key={item} onClick={() => toggleItem(item)} className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-colors border active:scale-95 ${isSelected ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/40'}`}>
+                                {item}
                             </button>
                         );
                     })}
@@ -64,43 +47,8 @@ export const GroupInput = memo(({ existingGroups = [], value, onChange, name, pl
     );
 });
 
-export const ArtistInput = memo(({ existingArtists = [], value, onChange, name, placeholder, inputClass = "rounded-xl px-4 py-4 text-sm" }) => {
-    const [val, setVal] = useState(value || "");
-
-    useEffect(() => {
-        if (value !== undefined) setVal(value);
-    }, [value]);
-
-    const handleChange = (newVal) => {
-        if (onChange) onChange(newVal);
-        setVal(newVal);
-    };
-
-    const toggleArtist = (artist) => {
-        if (val === artist) handleChange("");
-        else handleChange(artist);
-    };
-
-    const baseClass = `w-full bg-black border border-theme-600/40 text-theme-300 font-bold text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)] ${inputClass}`;
-
-    return (
-        <div className="w-full flex flex-col gap-2">
-            <input name={name} value={val} onChange={e => handleChange(e.target.value)} placeholder={placeholder || "Artiste / Auteur (Optionnel)"} className={baseClass} />
-            {existingArtists.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 justify-center mt-1 max-h-24 overflow-y-auto custom-scrollbar p-1">
-                    {existingArtists.map(a => {
-                        const isSelected = val === a;
-                        return (
-                            <button type="button" key={a} onClick={() => toggleArtist(a)} className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-colors border active:scale-95 ${isSelected ? 'bg-theme-600 text-white border-theme-400 shadow-[0_0_10px_rgba(var(--theme-rgb),0.5)]' : 'bg-black text-theme-400 border-theme-600/40 hover:bg-theme-900/40'}`}>
-                                {a}
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
-});
+export const GroupInput = memo(({ existingGroups = [], ...props }) => <SingleSelectChipInput {...props} existingItems={existingGroups} placeholder={props.placeholder || "Série / Pile (Optionnel)"} />);
+export const ArtistInput = memo(({ existingArtists = [], ...props }) => <SingleSelectChipInput {...props} existingItems={existingArtists} placeholder={props.placeholder || "Artiste / Auteur (Optionnel)"} />);
 
 export const TagInput = memo(({ existingTags = [], value, defaultValue, onChange, name, placeholder, className }) => {
     const [val, setVal] = useState(value !== undefined ? value : (defaultValue || ""));
@@ -109,21 +57,21 @@ export const TagInput = memo(({ existingTags = [], value, defaultValue, onChange
         if (value !== undefined) setVal(value);
     }, [value]);
 
-    const handleChange = (newVal) => {
+    const handleChange = useCallback((newVal) => {
         if (onChange) onChange(newVal);
         else setVal(newVal);
-    };
+    }, [onChange]);
 
-    const toggleTag = (tag) => {
-        const currentTags = val.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+    const currentTagsSet = useMemo(() => new Set(val.split(',').map(t => t.trim().toUpperCase()).filter(Boolean)), [val]);
+
+    const toggleTag = useCallback((tag) => {
+        const currentTags = Array.from(currentTagsSet);
         if (currentTags.includes(tag)) {
             handleChange(currentTags.filter(t => t !== tag).join(', '));
         } else {
             handleChange([...currentTags, tag].join(', '));
         }
-    };
-
-    const currentTagsSet = new Set(val.split(',').map(t => t.trim().toUpperCase()).filter(Boolean));
+    }, [currentTagsSet, handleChange]);
 
     return (
         <div className="w-full flex flex-col gap-2">
@@ -150,13 +98,13 @@ export const ChapterTitleModal = memo(({ initialValue = "", onConfirm, onCancel 
         <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade">
             <div className="bg-slate-900 border border-theme-500/50 p-6 rounded-[24px] w-full max-w-sm shadow-[0_20px_50px_rgba(0,0,0,0.8)] animate-in">
                 <h3 className="text-theme-400 font-black uppercase text-center mb-4 tracking-widest text-sm">Nom du Chapitre</h3>
-                <input 
+                <input
                     autoFocus
-                    value={val} 
-                    onChange={e => setVal(e.target.value)} 
+                    value={val}
+                    onChange={e => setVal(e.target.value)}
                     placeholder="Ex: Chapitre 1, Combat..."
                     className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-3 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 mb-6"
-                    onKeyDown={e => { if(e.key === 'Enter') onConfirm(val); if(e.key === 'Escape') onCancel(); }}
+                    onKeyDown={e => { if (e.key === 'Enter') onConfirm(val); if (e.key === 'Escape') onCancel(); }}
                 />
                 <div className="flex gap-3">
                     <button onClick={onCancel} className="flex-1 py-3 text-[10px] font-black uppercase text-theme-500 border border-theme-800 rounded-xl hover:bg-white/5">Annuler</button>
@@ -182,7 +130,7 @@ export const ManualPageManageModal = memo(({ pages, chapters = [], onSave, onCan
             const newPages = [...orderedPages];
             const item = newPages.splice(draggedIdx, 1)[0];
             newPages.splice(index, 0, item);
-            
+
             // On ajuste les chapitres si nécessaire (ou on les invalide si c'est trop complexe, mais restons simple : on les garde liés à la page visuelle)
             setOrderedPages(newPages);
         }
@@ -209,7 +157,7 @@ export const ManualPageManageModal = memo(({ pages, chapters = [], onSave, onCan
         } else {
             setLocalChapters(prev => {
                 const filtered = prev.filter(c => c.startIndex !== editingChapter.index);
-                return [...filtered, { name: name.trim(), startIndex: editingChapter.index }].sort((a,b) => a.startIndex - b.startIndex);
+                return [...filtered, { name: name.trim(), startIndex: editingChapter.index }].sort((a, b) => a.startIndex - b.startIndex);
             });
         }
         setEditingChapter(null);
@@ -238,12 +186,12 @@ export const ManualPageManageModal = memo(({ pages, chapters = [], onSave, onCan
                         const isSelected = selectedPages.has(i);
                         const chapter = localChapters.find(c => c.startIndex === i);
                         return (
-                            <div key={i} draggable onDragStart={(e) => handleDragStart(e, i)} onDragOver={(e) => handleDragOver(e, i)} onDrop={(e) => handleDrop(e, i)}
+                            <div key={f.name || i} draggable onDragStart={(e) => handleDragStart(e, i)} onDragOver={(e) => handleDragOver(e, i)} onDrop={(e) => handleDrop(e, i)}
                                 className={`relative aspect-[3/4.5] bg-black rounded-2xl overflow-hidden border transition-all cursor-move group select-none touch-none ${chapter ? 'border-theme-400 ring-2 ring-theme-500/30' : 'border-theme-600/40'} ${isSelected ? 'opacity-80 scale-[0.98]' : ''}`}
                             >
                                 <div className="absolute inset-0 pointer-events-none"><StackThumbnail file={f} /></div>
                                 <div className="absolute top-2 left-2 bg-black/80 backdrop-blur-md text-theme-400 font-black text-[10px] min-w-[24px] h-[24px] flex items-center justify-center rounded-lg border border-theme-500/50 shadow-[0_0_10px_rgba(var(--theme-rgb),0.4)] z-10 pointer-events-none">{i + 1}</div>
-                                
+
                                 {chapter && (
                                     <div className="absolute top-2 right-2 left-10 bg-theme-600/90 backdrop-blur-md text-white font-black text-[9px] uppercase h-[24px] flex items-center px-3 rounded-lg border border-theme-400 shadow-[0_0_15px_rgba(var(--theme-rgb),0.5)] z-10 truncate translate-x-0 animate-slide-in">
                                         🔖 {chapter.name}
@@ -279,10 +227,10 @@ export const ManualPageManageModal = memo(({ pages, chapters = [], onSave, onCan
             )}
 
             {editingChapter && (
-                <ChapterTitleModal 
-                    initialValue={editingChapter.name} 
-                    onConfirm={confirmChapter} 
-                    onCancel={() => setEditingChapter(null)} 
+                <ChapterTitleModal
+                    initialValue={editingChapter.name}
+                    onConfirm={confirmChapter}
+                    onCancel={() => setEditingChapter(null)}
                 />
             )}
         </div>
@@ -294,6 +242,7 @@ export const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingG
     const [existingPages, setExistingPages] = useState([]);
     const [isLoadingPages, setIsLoadingPages] = useState(false);
     const [currentChapters, setCurrentChapters] = useState(editingManga?.chapters || []);
+    const [modifiedPages, setModifiedPages] = useState(null);
 
     if (!editingManga) return null;
 
@@ -302,21 +251,29 @@ export const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingG
         const db = await initDB();
         db.transaction(STORE_PAGES).objectStore(STORE_PAGES).get(editingManga.id).onsuccess = (e) => {
             if (e.target.result) {
-                setExistingPages(e.target.result.pages.map(p => deserializeFile(p)));
+                const pages = e.target.result.pages.map(p => deserializeFile(p));
+                setExistingPages(pages);
                 setIsEditingChapters(true);
             }
             setIsLoadingPages(false);
         };
     };
 
+    // Sauvegarde les pages et chapitres modifiés depuis la modale de gestion manuelle
     const handleSaveChapters = (newPages, newChapters) => {
         setCurrentChapters(newChapters);
+        // Compare la nouvelle liste de pages avec l'ancienne pour voir si l'ordre a changé.
+        // Une simple comparaison de noms de fichiers suffit ici.
+        if (JSON.stringify(existingPages.map(p => p.name)) !== JSON.stringify(newPages.map(p => p.name))) {
+            setModifiedPages(newPages);
+        }
         setIsEditingChapters(false);
     };
 
+    // Soumission finale du formulaire de modification
     const handleFinalSubmit = (e) => {
         e.preventDefault();
-        onSubmit(e, currentChapters);
+        onSubmit(e, currentChapters, modifiedPages);
     };
 
     return (
@@ -325,14 +282,14 @@ export const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingG
                 <h2 className="text-xl font-black mb-8 text-center uppercase text-theme-400" style={{ textShadow: '0 0 10px rgba(var(--theme-rgb),0.8)' }}>Modifier</h2>
                 <form onSubmit={handleFinalSubmit} className="space-y-5">
                     <input name="title" defaultValue={editingManga.title} required className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-base text-center outline-none focus:border-theme-400 focus:shadow-[0_0_20px_rgba(var(--theme-rgb),0.4)] transition-all" />
-                    
+
                     <div className="grid grid-cols-2 gap-4">
                         <ArtistInput existingArtists={existingArtists} value={editingManga.artist || ""} name="artist" inputClass="rounded-2xl px-5 py-4 text-sm" />
                         <GroupInput existingGroups={existingGroups} value={editingManga.group || ""} name="group" inputClass="rounded-2xl px-5 py-4 text-sm" />
                     </div>
 
                     <TagInput existingTags={existingTags} name="tags" defaultValue={(editingManga.tags || []).join(', ')} placeholder="Tags (Ex: Shonen, Action...)" className="w-full bg-black border border-theme-600/40 rounded-2xl px-5 py-4 text-theme-300 font-bold text-sm text-center outline-none transition-all" />
-                    
+
                     <button type="button" onClick={handleOpenChapters} disabled={isLoadingPages} className={`w-full py-5 rounded-2xl bg-theme-600/10 border border-theme-500/50 text-theme-100 font-black uppercase text-xs transition-all hover:bg-theme-600/20 active:scale-95 flex items-center justify-center gap-2 ${isLoadingPages ? 'opacity-50 pointer-events-none' : ''}`}>
                         <IconFlag width="18" height="18" /> {isLoadingPages ? 'Chargement...' : 'Gérer les Chapitres'}
                         {currentChapters.length > 0 && <span className="bg-theme-600 px-2 py-0.5 rounded-full text-[10px] ml-2">{currentChapters.length}</span>}
@@ -345,11 +302,11 @@ export const EditMangaModal = memo(({ editingManga, onClose, onSubmit, existingG
                 </form>
             </div>
             {isEditingChapters && (
-                <ManualPageManageModal 
-                    pages={existingPages} 
-                    chapters={currentChapters} 
-                    onSave={handleSaveChapters} 
-                    onCancel={() => setIsEditingChapters(false)} 
+                <ManualPageManageModal
+                    pages={existingPages}
+                    chapters={currentChapters}
+                    onSave={handleSaveChapters}
+                    onCancel={() => setIsEditingChapters(false)}
                     isImport={false}
                 />
             )}
@@ -388,14 +345,39 @@ export const BatchEditModal = memo(({ isOpen, count, onClose, onSubmit, existing
 });
 
 const CoverPicker = memo(({ preview, label, sublabel, isRequired, height = "h-40", onFile }) => {
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
+
     const handleChange = (e) => {
         const f = e.target.files?.[0];
         if (f) onFile(f);
     };
-    const previewClass = `relative rounded-2xl border border-theme-500 cursor-pointer active:scale-95 transition-all ${height} overflow-hidden shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] block group bg-black`;
-    const emptyClass   = `relative bg-black hover:bg-theme-950/30 rounded-2xl border border-theme-600/40 p-4 text-center cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center ${height} shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.1)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.3)] hover:border-theme-400 group`;
+
+    const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); };
+    const handleDragEnter = (e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOver(true); };
+    const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOver(false); };
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            onFile(e.dataTransfer.files[0]);
+            e.dataTransfer.clearData();
+        }
+    };
+
+    const commonProps = {
+        onDragEnter: handleDragEnter,
+        onDragLeave: handleDragLeave,
+        onDragOver: handleDragOver,
+        onDrop: handleDrop,
+    };
+
+    const previewClass = `relative rounded-2xl border cursor-pointer active:scale-95 transition-all ${height} overflow-hidden shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] block group bg-black ${isDraggingOver ? 'border-theme-400 scale-105 ring-4 ring-theme-500/50' : 'border-theme-500'}`;
+    const emptyClass = `relative bg-black hover:bg-theme-950/30 rounded-2xl border p-4 text-center cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center ${height} shadow-[inset_0_0_15px_rgba(var(--theme-rgb),0.1)] hover:shadow-[0_0_20px_rgba(var(--theme-rgb),0.3)] group ${isDraggingOver ? 'border-theme-400 scale-105 bg-theme-900/50' : 'border-theme-600/40 hover:border-theme-400'}`;
+
     return preview ? (
-        <label className={previewClass}>
+        <label {...commonProps} className={previewClass}>
+            {isDraggingOver && <div className="absolute inset-0 bg-theme-600/50 backdrop-blur-sm z-30 flex items-center justify-center text-white font-black text-lg uppercase tracking-widest">Déposer</div>}
             <img src={preview} className="absolute inset-0 w-full h-full object-contain drop-shadow-2xl z-10" />
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-8 pb-3 px-4 flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity z-20">
                 <span className="text-[10px] text-white font-black uppercase drop-shadow-[0_0_5px_rgba(0,0,0,1)]">{label}</span>
@@ -404,7 +386,7 @@ const CoverPicker = memo(({ preview, label, sublabel, isRequired, height = "h-40
             <input type="file" accept="image/*" className="hidden" onChange={handleChange} />
         </label>
     ) : (
-        <label className={emptyClass}>
+        <label {...commonProps} className={emptyClass}>
             <span className="text-xs text-theme-200 uppercase font-black mb-1 group-hover:text-theme-100 transition-colors">{label}</span>
             {sublabel && <span className="text-theme-700 text-[9px] font-bold uppercase mb-2">{sublabel}</span>}
             <span className={`font-black text-[10px] px-3 py-1.5 rounded-lg transition-all border ${isRequired ? 'text-theme-400 bg-theme-900/40 border-theme-500/30 group-hover:bg-theme-600/30 group-hover:border-theme-400' : 'text-theme-500 bg-theme-950 border-theme-800/50 group-hover:bg-theme-900/50 group-hover:border-theme-600'}`}>+ AJOUTER</span>
@@ -419,7 +401,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
     const [formArtist, setFormArtist] = useState("");
     const [formMangaDir, setFormMangaDir] = useState('rtl');
     const [formTags, setFormTags] = useState("");
-    
+
     const [coverStartFile, setCoverStartFile] = useState(null);
     const [coverStartPreview, setCoverStartPreview] = useState(null);
     const [coverEndFile, setCoverEndFile] = useState(null);
@@ -459,18 +441,18 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
         setLoading(true); setImportProgress("Lecture archive...");
         try {
             const zip = new JSZip(); await zip.loadAsync(file);
-            let metadata = null; if (zip.file("metadata.json")) { try { metadata = JSON.parse(await zip.file("metadata.json").async("string")); } catch(e) {} }
-            const filesMap = {}; 
+            let metadata = null; if (zip.file("metadata.json")) { try { metadata = JSON.parse(await zip.file("metadata.json").async("string")); } catch (e) { } }
+            const filesMap = {};
             const zipEntries = [];
             zip.forEach((relativePath, zipEntry) => {
                 if (!zipEntry.dir && !relativePath.includes('__MACOSX') && !relativePath.endsWith('metadata.json')) {
                     zipEntries.push({ relativePath, zipEntry });
                 }
             });
-            
+
             for (let i = 0; i < zipEntries.length; i++) {
                 if (i % 5 === 0) {
-                    setImportProgress(`Extraction fichier ${i+1}/${zipEntries.length}...`);
+                    setImportProgress(`Extraction fichier ${i + 1}/${zipEntries.length}...`);
                     await new Promise(r => setTimeout(r, 0)); // Permet à l'UI de s'actualiser
                 }
                 const { relativePath, zipEntry } = zipEntries[i];
@@ -482,14 +464,14 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                 filesMap[relativePath] = blob;
             }
             if (metadata) {
-                setImportProgress("Restauration..."); 
-                setFormTitle(metadata.title || ""); 
-                setFormMangaDir(metadata.direction || "rtl"); 
+                setImportProgress("Restauration...");
+                setFormTitle(metadata.title || "");
+                setFormMangaDir(metadata.direction || "rtl");
                 if (metadata.group) setFormGroup(metadata.group);
                 if (metadata.artist) setFormArtist(metadata.artist);
-                const importedTags = new Set((metadata.tags || []).map(t => t.toUpperCase())); 
+                const importedTags = new Set((metadata.tags || []).map(t => t.toUpperCase()));
                 setFormTags(Array.from(importedTags).join(', '));
-                
+
                 if (metadata.coverStart && filesMap[metadata.coverStart]) { setCoverStartFile(filesMap[metadata.coverStart]); setCoverStartPreview(URL.createObjectURL(filesMap[metadata.coverStart])); }
                 if (metadata.coverEnd && filesMap[metadata.coverEnd]) { setCoverEndFile(filesMap[metadata.coverEnd]); setCoverEndPreview(URL.createObjectURL(filesMap[metadata.coverEnd])); }
                 if (metadata.coverDouble && filesMap[metadata.coverDouble]) { setCoverDoubleFile(filesMap[metadata.coverDouble]); setCoverDoublePreview(URL.createObjectURL(filesMap[metadata.coverDouble])); }
@@ -503,7 +485,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
             }
             setLoading(false); setImportProgress(null);
         } catch (error) { console.error("Erreur zip:", error); showToast("Erreur de lecture de l'archive.", "error"); setLoading(false); setImportProgress(null); }
-        e.target.value = ''; 
+        e.target.value = '';
     };
 
     const handleAdd = async (e) => {
@@ -511,11 +493,11 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
         if (!orderedPages.length || (!coverStartFile && !coverDoubleFile)) { showToast("Couverture et pages requises !", "error"); return; }
         setLoading(true); setImportProgress("Préparation des fichiers...");
         try {
-            const mangaId = "m_"+Date.now();
+            const mangaId = "m_" + Date.now();
             const newTags = formTags.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
             const finalGroup = formGroup.trim() || null;
             const finalArtist = formArtist.trim() || null;
-            
+
             // Optimisation des couvertures (max 1600px, qualité 85%)
             const optCoverDouble = coverDoubleFile ? await optimizeImage(coverDoubleFile, 1600, 0.85) : null;
             const optCoverStart = coverStartFile ? await optimizeImage(coverStartFile, 1600, 0.85) : null;
@@ -526,26 +508,30 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
             const sCoverStart = await serializeFile(optCoverStart);
             const sCoverEnd = await serializeFile(optCoverEnd);
             const sCover = await serializeFile(optCoverFallback);
-            
-            const sOrderedPages = [];
-            for(let i=0; i<orderedPages.length; i++){
-                setImportProgress(`Optimisation page ${i+1}/${orderedPages.length}`);
-                const optimizedPage = await optimizeImage(orderedPages[i], 1600, 0.80);
-                sOrderedPages.push(await serializeFile(optimizedPage));
-            }
-            
+
+            setImportProgress(`Traitement de ${orderedPages.length} pages...`);
+
+            // Optimisation et sérialisation des pages en parallèle pour une meilleure performance
+            const pageProcessingPromises = orderedPages.map(page =>
+                optimizeImage(page, 1600, 0.80).then(serializeFile)
+            );
+            const sOrderedPages = await Promise.all(pageProcessingPromises);
+
             const db = await initDB();
             const tx = db.transaction([STORE_MANGAS, STORE_PAGES], "readwrite");
-            
+
             tx.objectStore(STORE_MANGAS).add({
-                id: mangaId, title: formTitle || "Sans titre", group: finalGroup, artist: finalArtist, direction: formMangaDir, tags: newTags, 
-                coverDouble: sCoverDouble, coverStart: sCoverStart, coverEnd: sCoverEnd, cover: sCover,
-                totalPages: orderedPages.length, progress: 0, date: Date.now(),
+                id: mangaId, title: formTitle || "Sans titre", group: finalGroup, artist: finalArtist, direction: formMangaDir, tags: newTags,
+                coverDouble: sCoverDouble,
+                coverStart: sCoverStart,
+                coverEnd: sCoverEnd,
+                cover: sCover,
+                totalPages: sOrderedPages.length, progress: 0, date: Date.now(),
                 chapters: chapters
             });
-            
+
             tx.objectStore(STORE_PAGES).add({ id: mangaId, pages: sOrderedPages });
-            
+
             tx.oncomplete = () => { setLoading(false); setImportProgress(null); triggerHaptic(100); onSuccess(); };
         } catch (error) { console.error(error); setLoading(false); setImportProgress(null); showToast("Erreur lors de l'importation.", "error"); }
     };
@@ -597,13 +583,13 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                 <form onSubmit={handleAdd} className="bg-slate-900/95 w-full max-w-2xl rounded-[32px] p-6 sm:p-8 border border-theme-600/40 shadow-[0_0_50px_rgba(var(--theme-rgb),0.3)] flex flex-col max-h-[90vh] relative overflow-hidden animate-in">
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-theme-600/20 blur-[60px] rounded-full pointer-events-none"></div>
                     <h2 className="text-theme-400 font-black mb-6 uppercase text-center tracking-widest text-base sm:text-lg flex-none relative z-10" style={{ textShadow: '0 0 15px rgba(var(--theme-rgb),0.8)' }}>Nouveau Manga</h2>
-                    
+
                     <div className="overflow-y-auto flex-1 pr-2 pb-2 relative z-10 custom-scrollbar">
                         <div className="mb-6 bg-black border border-theme-500/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-[inset_0_0_20px_rgba(var(--theme-rgb),0.1)]">
                             <span className="text-theme-400 font-black text-xs uppercase tracking-widest mb-3" style={{ textShadow: '0 0 8px rgba(var(--theme-rgb),0.5)' }}>Import Rapide ZIP/CBZ</span>
-                            <label className="bg-theme-600/20 text-theme-300 border border-theme-500 px-6 py-3 rounded-xl text-xs font-black uppercase cursor-pointer active:scale-95 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] hover:bg-theme-600/40"><IconUpload className="w-5 h-5" /> SÉLECTIONNER UNE ARCHIVE<input type="file" accept=".zip,.cbz" className="hidden" onChange={handleZipImport} /></label>
+                            <label id="tutorial-import-zip" className="bg-theme-600/20 text-theme-300 border border-theme-500 px-6 py-3 rounded-xl text-xs font-black uppercase cursor-pointer active:scale-95 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(var(--theme-rgb),0.3)] hover:shadow-[0_0_25px_rgba(var(--theme-rgb),0.6)] hover:bg-theme-600/40"><IconUpload className="w-5 h-5" /> SÉLECTIONNER UNE ARCHIVE<input type="file" accept=".zip,.cbz" className="hidden" onChange={handleZipImport} /></label>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 gap-4 mb-4">
                             <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Titre du manga" required className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] placeholder-theme-800 transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]" />
                             <ArtistInput existingArtists={existingArtists} value={formArtist} onChange={setFormArtist} name="artist" inputClass="rounded-xl px-4 py-4 text-sm placeholder-theme-800" />
@@ -612,7 +598,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                                 <TagInput existingTags={existingTags} value={formTags} onChange={setFormTags} placeholder="Tags (Action, Terminé...)" className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-theme-300 font-bold text-sm text-center outline-none focus:border-theme-400 focus:shadow-[0_0_15px_rgba(var(--theme-rgb),0.4)] shadow-[inset_0_0_10px_rgba(var(--theme-rgb),0.1)] placeholder-theme-800 transition-all [text-shadow:0_0_10px_rgba(var(--theme-rgb),0.8)]" />
                             </div>
                         </div>
-                        
+
                         <div className="mb-6">
                             <select value={formMangaDir} onChange={e => setFormMangaDir(e.target.value)} className="w-full bg-black border border-theme-600/40 rounded-xl px-4 py-4 text-xs text-theme-300 font-black uppercase tracking-widest outline-none focus:border-theme-400 transition-all appearance-none text-center">
                                 <option value="rtl">Lecture Manga (Droite à Gauche)</option>
@@ -653,7 +639,7 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                             </label>
                         </div>
                     </div>
-                    
+
                     <div className="flex gap-4 mt-4 pt-6 border-t border-theme-600/30 flex-none relative z-10">
                         <button type="button" onClick={onClose} className="flex-1 py-4 sm:py-5 text-theme-500 hover:text-theme-300 hover:bg-theme-950/30 font-black uppercase text-[10px] sm:text-xs rounded-2xl transition-all border border-transparent hover:border-theme-600/40">Annuler</button>
                         <button type="submit" disabled={(!coverStartFile && !coverDoubleFile) || orderedPages.length === 0} className={`flex-1 py-4 sm:py-5 rounded-2xl font-black uppercase text-[10px] sm:text-xs transition-all shadow-lg border ${((!coverStartFile && !coverDoubleFile) || orderedPages.length === 0) ? 'bg-black text-theme-800 border-theme-900/30 shadow-none cursor-not-allowed' : 'bg-theme-600 text-white border-theme-400 hover:scale-[1.02] shadow-[0_0_20px_rgba(var(--theme-rgb),0.5)] hover:shadow-[0_0_30px_rgba(var(--theme-rgb),0.8)] active:scale-95'}`}>Lancer l'import</button>
@@ -661,11 +647,11 @@ export const AddChapterModal = memo(({ onClose, onSuccess, setLoading, setImport
                 </form>
             </div>
             {isManualSorting && (
-                <ManualPageManageModal 
-                    pages={orderedPages} 
-                    chapters={chapters} 
-                    onSave={handleSaveManual} 
-                    onCancel={() => setIsManualSorting(false)} 
+                <ManualPageManageModal
+                    pages={orderedPages}
+                    chapters={chapters}
+                    onSave={handleSaveManual}
+                    onCancel={() => setIsManualSorting(false)}
                 />
             )}
         </>
