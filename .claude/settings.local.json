@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npm show:*)",
+      "Bash(node -e \"const v=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); const arr=JSON.parse\\(v\\); console.log\\(arr.slice\\(-5\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)"
     ]
   }
 }

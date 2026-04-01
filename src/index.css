@@ -701,12 +701,11 @@ body.is-pseudo-fs {
     height: 2px;
     background-color: #fff;
     box-shadow:
-        0 0 10px 3px rgba(var(--theme-rgb), 0.9),
-        0 0 20px 6px rgba(var(--theme-rgb), 0.5),
-        0 0 35px 12px rgba(var(--theme-rgb), 0.3);
+        0 0 calc(10px * var(--led-intensity, 1)) calc(3px * var(--led-intensity, 1)) rgba(var(--theme-rgb), 0.9),
+        0 0 calc(25px * var(--led-intensity, 1)) calc(8px * var(--led-intensity, 1)) rgba(var(--theme-rgb), 0.6),
+        0 0 calc(60px * var(--led-intensity, 1)) calc(20px * var(--led-intensity, 1)) rgba(var(--theme-rgb), 0.35);
     z-index: 25;
-    /* Just above the board */
-    opacity: 0.8;
+    opacity: min(1, calc(var(--led-intensity, 1) * 0.9));
     pointer-events: none;
     animation: led-pulse 4s ease-in-out infinite alternate;
     will-change: filter, opacity;
@@ -714,12 +713,12 @@ body.is-pseudo-fs {
 
 @keyframes led-pulse {
     0% {
-        opacity: 0.6;
-        filter: brightness(0.9) saturate(1.2);
+        opacity: min(1, calc(var(--led-intensity, 1) * 0.7));
+        filter: brightness(calc(0.9 + var(--led-intensity, 1) * 0.1)) saturate(1.2);
     }
 
     100% {
-        opacity: 1;
-        filter: brightness(1.3) saturate(1.8);
+        opacity: min(1, calc(var(--led-intensity, 1) * 0.95));
+        filter: brightness(calc(1.0 + var(--led-intensity, 1) * 0.5)) saturate(calc(1.4 + var(--led-intensity, 1) * 0.8));
     }
 }
